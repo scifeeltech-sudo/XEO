@@ -17,11 +17,11 @@ interface RadarChartProps {
 }
 
 const LABELS: Record<keyof PentagonScores, string> = {
-  reach: "도달률",
-  engagement: "참여도",
-  virality: "바이럴성",
-  quality: "품질",
-  longevity: "지속성",
+  reach: "Reach",
+  engagement: "Engagement",
+  virality: "Virality",
+  quality: "Quality",
+  longevity: "Longevity",
 };
 
 export function RadarChart({ scores, size = 300 }: RadarChartProps) {
@@ -54,8 +54,8 @@ export function RadarChart({ scores, size = 300 }: RadarChartProps) {
         />
         <Tooltip
           formatter={(value) => [
-            `${typeof value === "number" ? value.toFixed(1) : value}점`,
-            "점수",
+            `${typeof value === "number" ? value.toFixed(1) : value}`,
+            "Score",
           ]}
         />
       </RechartsRadarChart>

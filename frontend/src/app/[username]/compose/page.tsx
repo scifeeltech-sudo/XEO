@@ -17,9 +17,9 @@ export default function ComposePage() {
             href={`/${username}`}
             className="text-gray-400 hover:text-white transition-colors"
           >
-            ← 프로필로 돌아가기
+            ← Back to Profile
           </Link>
-          <h1 className="text-2xl font-bold text-white">포스트 작성</h1>
+          <h1 className="text-2xl font-bold text-white">Compose Post</h1>
           <span className="text-gray-500">@{username}</span>
         </div>
 

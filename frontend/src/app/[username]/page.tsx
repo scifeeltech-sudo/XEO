@@ -48,13 +48,13 @@ export default function ProfilePage() {
     return (
       <main className="min-h-screen bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto text-center py-20">
-          <h1 className="text-2xl text-red-500 mb-4">분석 실패</h1>
+          <h1 className="text-2xl text-red-500 mb-4">Analysis Failed</h1>
           <p className="text-gray-400">{error}</p>
           <Link
             href="/"
             className="text-blue-500 hover:underline mt-4 inline-block"
           >
-            돌아가기
+            Go Back
           </Link>
         </div>
       </main>
@@ -70,19 +70,19 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white">@{username}</h1>
-            <p className="text-gray-400">프로필 분석 결과</p>
+            <p className="text-gray-400">Profile Analysis Results</p>
           </div>
           <Link
             href={`/${username}/compose`}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
           >
-            포스트 작성
+            Compose Post
           </Link>
         </div>
 
         {/* Score Chart */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">스코어 차트</h2>
+          <h2 className="text-xl font-semibold text-white mb-4">Score Chart</h2>
           <div className="flex justify-center">
             <RadarChart scores={analysis.scores} size={350} />
           </div>
@@ -101,7 +101,7 @@ export default function ProfilePage() {
         {/* Insights */}
         {analysis.insights.length > 0 && (
           <div className="bg-gray-800 rounded-2xl p-6 mb-8">
-            <h2 className="text-xl font-semibold text-white mb-4">인사이트</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">Insights</h2>
             <div className="space-y-4">
               {analysis.insights.map((insight, i) => (
                 <div
@@ -127,7 +127,7 @@ export default function ProfilePage() {
         {/* Recommendations */}
         {analysis.recommendations.length > 0 && (
           <div className="bg-gray-800 rounded-2xl p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">추천</h2>
+            <h2 className="text-xl font-semibold text-white mb-4">Recommendations</h2>
             <div className="space-y-4">
               {analysis.recommendations.map((rec, i) => (
                 <div key={i} className="p-4 bg-gray-700/50 rounded-lg">

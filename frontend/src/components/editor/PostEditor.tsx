@@ -38,7 +38,7 @@ export function PostEditor({ username }: PostEditorProps) {
   const [suggestion, setSuggestion] = useState<ApplyTipsResponse | null>(null);
   const [applyingTips, setApplyingTips] = useState(false);
   const [polishing, setPolishing] = useState<PolishType | null>(null);
-  const [detectedLanguage, setDetectedLanguage] = useState<string>("ko");
+  const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [targetLanguage, setTargetLanguage] = useState<"ko" | "en" | "ja" | "zh">("en");
 
   // Target post preview state
@@ -103,7 +103,7 @@ export function PostEditor({ username }: PostEditorProps) {
   useEffect(() => {
     if (postType !== "original") {
       // For reply/quote, clear analysis when content changes
-      // User must click "분석하기" button manually
+      // User must click "Analyze" button manually
       return;
     }
 
@@ -161,7 +161,7 @@ export function PostEditor({ username }: PostEditorProps) {
       } catch (error) {
         console.error("Failed to fetch target post:", error);
         setTargetPostContext(null);
-        setTargetFetchError("대상 포스트를 가져올 수 없습니다. 언어를 직접 선택해주세요.");
+        setTargetFetchError("Could not fetch target post. Please select language manually.");
       } finally {
         setFetchingTarget(false);
       }
@@ -237,7 +237,7 @@ export function PostEditor({ username }: PostEditorProps) {
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert("클립보드에 복사되었습니다!");
+    alert("Copied to clipboard!");
   };
 
   const handleUseSuggestion = () => {
@@ -286,7 +286,7 @@ export function PostEditor({ username }: PostEditorProps) {
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
             >
-              {type === "original" ? "원본" : type === "reply" ? "답글" : "인용"}
+              {type === "original" ? "Original" : type === "reply" ? "Reply" : "Quote"}
             </button>
           ))}
         </div>
@@ -298,7 +298,7 @@ export function PostEditor({ username }: PostEditorProps) {
               type="text"
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
-              placeholder="대상 포스트 URL (https://x.com/...)"
+              placeholder="Target post URL (https://x.com/...)"
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
 
@@ -307,7 +307,7 @@ export function PostEditor({ username }: PostEditorProps) {
               <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
                 <div className="flex items-center gap-2 text-gray-400">
                   <span className="animate-spin">⏳</span>
-                  <span>대상 포스트 가져오는 중...</span>
+                  <span>Fetching target post...</span>
                 </div>
               </div>
             )}
@@ -324,7 +324,7 @@ export function PostEditor({ username }: PostEditorProps) {
                         <span className="text-blue-400">✓</span>
                       )}
                       <span className="text-gray-500 text-sm">
-                        • {targetPostContext.author.followers_count.toLocaleString()} 팔로워
+                        • {targetPostContext.author.followers_count.toLocaleString()} followers
                       </span>
                     </div>
                     <p className="text-gray-300 mb-3">
@@ -341,7 +341,7 @@ export function PostEditor({ username }: PostEditorProps) {
                     {/* Opportunity Score */}
                     <div className="mt-3 pt-3 border-t border-gray-700">
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-400 text-sm">기회 점수:</span>
+                        <span className="text-gray-400 text-sm">Opportunity Score:</span>
                         <span className={`font-bold ${
                           targetPostContext.opportunity_score.overall >= 70 ? "text-green-400" :
                           targetPostContext.opportunity_score.overall >= 40 ? "text-yellow-400" :
@@ -354,9 +354,9 @@ export function PostEditor({ username }: PostEditorProps) {
                           targetPostContext.analysis.freshness === "fresh" ? "bg-blue-900/50 text-blue-400" :
                           "bg-gray-700 text-gray-400"
                         }`}>
-                          {targetPostContext.analysis.freshness === "very_fresh" ? "🔥 매우 신선" :
-                           targetPostContext.analysis.freshness === "fresh" ? "✨ 신선" :
-                           targetPostContext.analysis.freshness === "moderate" ? "보통" : "오래됨"}
+                          {targetPostContext.analysis.freshness === "very_fresh" ? "🔥 Very Fresh" :
+                           targetPostContext.analysis.freshness === "fresh" ? "✨ Fresh" :
+                           targetPostContext.analysis.freshness === "moderate" ? "Moderate" : "Old"}
                         </span>
                       </div>
                     </div>
@@ -375,7 +375,7 @@ export function PostEditor({ username }: PostEditorProps) {
             {/* Target Language Selector - Always show for manual override */}
             <div className="flex gap-2 items-center">
               <span className="text-gray-400 text-sm">
-                {targetPostContext ? "감지된 언어:" : "대상 포스트 언어:"}
+                {targetPostContext ? "Detected language:" : "Target post language:"}
               </span>
               {(["en", "ko", "ja", "zh"] as const).map((lang) => (
                 <button
@@ -399,7 +399,7 @@ export function PostEditor({ username }: PostEditorProps) {
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="포스트 내용을 입력하세요..."
+            placeholder="Write your post content..."
             className="w-full h-48 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
           <div className="absolute bottom-3 right-3 text-gray-500 text-sm">
@@ -414,12 +414,12 @@ export function PostEditor({ username }: PostEditorProps) {
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           <span>🔍</span>
-          <span>{loading ? "분석 중..." : "분석하기"}</span>
+          <span>{loading ? "Analyzing..." : "Analyze"}</span>
         </button>
 
         {/* Media Type */}
         <div className="flex gap-2 items-center">
-          <span className="text-gray-400">미디어:</span>
+          <span className="text-gray-400">Media:</span>
           {[undefined, "image", "video", "gif"].map((type) => (
             <button
               key={type ?? "none"}
@@ -432,7 +432,7 @@ export function PostEditor({ username }: PostEditorProps) {
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
             >
-              {type ?? "없음"}
+              {type ?? "None"}
             </button>
           ))}
         </div>
@@ -443,7 +443,7 @@ export function PostEditor({ username }: PostEditorProps) {
           disabled={!content}
           className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
         >
-          클립보드에 복사
+          Copy to Clipboard
         </button>
 
         {/* Suggestion Panels Container */}
@@ -452,7 +452,7 @@ export function PostEditor({ username }: PostEditorProps) {
           {suggestion && (
             <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                ✨ 포스팅 제안
+                ✨ Post Suggestion
               </h3>
               <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
                 <p className="text-white whitespace-pre-wrap">
@@ -466,7 +466,7 @@ export function PostEditor({ username }: PostEditorProps) {
               {/* Polish Buttons inside suggestion */}
               <div className="mb-4">
                 <span className="text-gray-400 text-sm block mb-2">
-                  글 다듬기 (Claude AI):
+                  Polish with Claude AI:
                 </span>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -478,7 +478,7 @@ export function PostEditor({ username }: PostEditorProps) {
                         : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                     } disabled:opacity-50`}
                   >
-                    ✍️ 어조 유지 {polishing === "grammar" && "⏳"}
+                    ✍️ Keep Tone {polishing === "grammar" && "⏳"}
                   </button>
                   <button
                     onClick={() => handlePolishSuggestion("twitter")}
@@ -489,7 +489,7 @@ export function PostEditor({ username }: PostEditorProps) {
                         : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                     } disabled:opacity-50`}
                   >
-                    🐦 트위터 스타일 {polishing === "twitter" && "⏳"}
+                    🐦 Twitter Style {polishing === "twitter" && "⏳"}
                   </button>
                   <button
                     onClick={() => handlePolishSuggestion("280char")}
@@ -500,7 +500,7 @@ export function PostEditor({ username }: PostEditorProps) {
                         : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                     } disabled:opacity-50`}
                   >
-                    📏 280자 조정 {polishing === "280char" && "⏳"}
+                    📏 Fit 280 chars {polishing === "280char" && "⏳"}
                   </button>
                 </div>
               </div>
@@ -517,7 +517,7 @@ export function PostEditor({ username }: PostEditorProps) {
               </div>
               {Object.keys(suggestion.predicted_improvement).length > 0 && (
                 <div className="text-sm text-green-400 mb-4">
-                  예상 개선:{" "}
+                  Expected improvement:{" "}
                   {Object.entries(suggestion.predicted_improvement)
                     .map(([k, v]) => `${k} ${v}`)
                     .join(", ")}
@@ -528,13 +528,13 @@ export function PostEditor({ username }: PostEditorProps) {
                   onClick={handleUseSuggestion}
                   className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
                 >
-                  이 내용 사용하기
+                  Use This Content
                 </button>
                 <button
                   onClick={() => handleCopy(suggestion.suggested_content)}
                   className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
                 >
-                  📋 복사
+                  📋 Copy
                 </button>
               </div>
             </div>
@@ -544,16 +544,16 @@ export function PostEditor({ username }: PostEditorProps) {
           {postType !== "original" && (fetchingPersonalized || personalizedPost) && (
             <div className="bg-gray-800 rounded-xl p-4 border-2 border-purple-500">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                🤖 AI 맞춤 포스팅
+                🤖 AI Personalized Post
                 <span className="text-sm font-normal text-purple-400">
-                  ({username}님의 스타일로 자동 생성)
+                  (Auto-generated in {username}&apos;s style)
                 </span>
               </h3>
 
               {fetchingPersonalized ? (
                 <div className="flex items-center justify-center py-8 text-gray-400">
                   <span className="animate-spin mr-2">⏳</span>
-                  AI가 {username}님의 스타일을 분석하고 포스팅을 생성 중...
+                  AI is analyzing {username}&apos;s style and generating post...
                 </div>
               ) : personalizedPost && (
                 <>
@@ -570,19 +570,19 @@ export function PostEditor({ username }: PostEditorProps) {
                   {/* Style Analysis */}
                   <div className="mb-4 p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
                     <div className="text-sm text-purple-300 mb-2 font-medium">
-                      📊 스타일 분석 (신뢰도: {Math.round(personalizedPost.confidence * 100)}%)
+                      📊 Style Analysis (Confidence: {Math.round(personalizedPost.confidence * 100)}%)
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
-                        <span className="text-gray-400">어조:</span>
+                        <span className="text-gray-400">Tone:</span>
                         <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.tone}</span>
                       </div>
                       <div>
-                        <span className="text-gray-400">이모지:</span>
+                        <span className="text-gray-400">Emoji:</span>
                         <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.emoji_style}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-gray-400">관심사:</span>
+                        <span className="text-gray-400">Interests:</span>
                         <span className="text-gray-300 ml-1">
                           {personalizedPost.style_analysis.topics.slice(0, 3).join(", ")}
                         </span>
@@ -604,13 +604,13 @@ export function PostEditor({ username }: PostEditorProps) {
                       }}
                       className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
                     >
-                      이 내용 사용하기
+                      Use This Content
                     </button>
                     <button
                       onClick={() => handleCopy(personalizedPost.generated_content)}
                       className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
                     >
-                      📋 복사
+                      📋 Copy
                     </button>
                   </div>
                 </>
@@ -623,7 +623,7 @@ export function PostEditor({ username }: PostEditorProps) {
       {/* Analysis Results */}
       <div className="space-y-6">
         {loading && (
-          <div className="text-center py-8 text-gray-400">분석 중...</div>
+          <div className="text-center py-8 text-gray-400">Analyzing...</div>
         )}
 
         {analysis && !loading && (
@@ -631,7 +631,7 @@ export function PostEditor({ username }: PostEditorProps) {
             {/* Radar Chart */}
             <div className="bg-gray-800 rounded-xl p-4">
               <h3 className="text-lg font-semibold text-white mb-4">
-                예상 스코어
+                Predicted Score
               </h3>
               <RadarChart scores={analysis.scores} size={280} />
               <div className="text-center mt-2">
@@ -649,9 +649,9 @@ export function PostEditor({ username }: PostEditorProps) {
             {analysis.quick_tips.length > 0 && (
               <div className="bg-gray-800 rounded-xl p-4">
                 <h3 className="text-lg font-semibold text-white mb-4">
-                  💡 빠른 팁{" "}
+                  💡 Quick Tips{" "}
                   <span className="text-sm font-normal text-gray-400">
-                    (최대 3개 선택)
+                    (Select up to 3)
                   </span>
                 </h3>
                 <ul className="space-y-3">
@@ -694,7 +694,7 @@ export function PostEditor({ username }: PostEditorProps) {
                     disabled={applyingTips}
                     className="w-full mt-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-medium rounded-lg transition-colors"
                   >
-                    {applyingTips ? "적용 중..." : `✨ ${selectedTips.length}개 팁 반영하기`}
+                    {applyingTips ? "Applying..." : `✨ Apply ${selectedTips.length} Tips`}
                   </button>
                 )}
               </div>
@@ -704,11 +704,11 @@ export function PostEditor({ username }: PostEditorProps) {
             {analysis.context && (
               <div className="bg-gray-800 rounded-xl p-4">
                 <h3 className="text-lg font-semibold text-white mb-4">
-                  컨텍스트 분석
+                  Context Analysis
                 </h3>
                 <div className="space-y-3">
                   <div className="p-3 bg-gray-700/50 rounded-lg">
-                    <div className="text-sm text-gray-400">대상 포스트</div>
+                    <div className="text-sm text-gray-400">Target Post</div>
                     <div className="text-white">
                       @{analysis.context.target_author}
                     </div>
@@ -741,12 +741,12 @@ export function PostEditor({ username }: PostEditorProps) {
         {!analysis && !loading && (
           <div className="text-center py-12 text-gray-500">
             {postType === "original" ? (
-              "포스트 내용을 입력하면 실시간으로 스코어가 분석됩니다"
+              "Enter your post content to see real-time score analysis"
             ) : (
               <>
-                대상 포스트 URL과 내용을 입력한 후
+                Enter the target post URL and your content, then
                 <br />
-                <span className="text-blue-400">[🔍 분석하기]</span> 버튼을 눌러주세요
+                click <span className="text-blue-400">[🔍 Analyze]</span> button
               </>
             )}
           </div>

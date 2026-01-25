@@ -21,7 +21,7 @@ export default function Home() {
           X Score Optimizer
         </h1>
         <p className="text-xl text-gray-400 mb-12">
-          X 알고리즘 기반으로 포스트 스코어를 예측하고 최적화하세요
+          Predict and optimize your post scores based on X algorithm
         </p>
 
         <form onSubmit={handleSubmit} className="flex gap-4 justify-center">
@@ -33,7 +33,7 @@ export default function Home() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="유저네임을 입력하세요"
+              placeholder="Enter your username"
               className="w-full pl-10 pr-4 py-4 rounded-xl bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
             />
           </div>
@@ -41,12 +41,12 @@ export default function Home() {
             type="submit"
             className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors text-lg"
           >
-            분석하기
+            Analyze
           </button>
         </form>
 
         <p className="mt-8 text-gray-500 text-sm">
-          가입 없이 무료로 바로 사용할 수 있습니다
+          Free to use, no sign-up required
         </p>
       </div>
     </main>
