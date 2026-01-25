@@ -9,6 +9,7 @@ import anthropic
 
 from src.config import get_settings
 from src.services.sela_api_client import SelaAPIClient
+from src.services.x_algorithm_advisor import X_ALGORITHM_KNOWLEDGE
 
 
 # Tip application templates (transform functions accept content and optional language)
@@ -190,23 +191,134 @@ class ContentOptimizer:
         selected_tips: list[str],
         language: str = "ko",
     ) -> dict:
-        """Apply selected tips to generate optimized content.
+        """Apply selected tips to generate optimized content using Claude AI.
 
         Args:
             username: User's username
             original_content: Original post content
-            selected_tips: List of tip IDs to apply
+            selected_tips: List of tip IDs (or tip descriptions) to apply
             language: Target language for suggestions (ko, en, ja, zh)
         """
-
         # Limit to 3 tips
         selected_tips = selected_tips[:3]
 
-        suggested_content = original_content
+        # If Claude is available, use AI-powered optimization
+        if self.anthropic_client and selected_tips:
+            result = await self._apply_tips_with_ai(
+                original_content, selected_tips, language
+            )
+            if result:
+                return result
+
+        # Fallback to rule-based transformation
+        return self._apply_tips_fallback(original_content, selected_tips, language)
+
+    async def _apply_tips_with_ai(
+        self,
+        content: str,
+        tips: list[str],
+        language: str,
+    ) -> Optional[dict]:
+        """Apply tips using Claude AI with X algorithm knowledge."""
+        lang_names = {"ko": "Korean", "en": "English", "ja": "Japanese", "zh": "Chinese"}
+        target_lang = lang_names.get(language, "Korean")
+
+        # Build tip descriptions
+        tip_descriptions = []
+        for tip in tips:
+            if tip in TIP_TEMPLATES:
+                tip_descriptions.append(TIP_TEMPLATES[tip]["description"])
+            else:
+                # For algorithm-generated tips (algo_tip_0, etc.), use the tip ID directly
+                tip_descriptions.append(tip)
+
+        system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
+
+You are an X (Twitter) content optimization expert. Your task is to rewrite content to maximize engagement based on the X algorithm while applying the requested improvements.
+
+RULES:
+1. Output MUST be in {target_lang}
+2. Keep the original message intent intact
+3. Apply all requested improvements naturally
+4. Make the content feel authentic, not robotic
+5. Optimize for the X algorithm factors mentioned in the knowledge base
+6. Return ONLY the optimized content, no explanations"""
+
+        user_prompt = f"""Rewrite this content applying these improvements:
+
+**Original Content:**
+{content}
+
+**Improvements to Apply:**
+{chr(10).join(f"- {tip}" for tip in tip_descriptions)}
+
+**Target Language:** {target_lang}
+
+Return ONLY the optimized content:"""
+
+        try:
+            message = self.anthropic_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=500,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+
+            suggested_content = message.content[0].text.strip()
+
+            # Build applied tips response
+            applied_tips = []
+            improvements = {}
+
+            for tip in tips:
+                if tip in TIP_TEMPLATES:
+                    template = TIP_TEMPLATES[tip]
+                    applied_tips.append({
+                        "tip_id": tip,
+                        "description": template["description"],
+                        "impact": template["impact"],
+                    })
+                    # Track improvements
+                    if "참여도" in template["impact"]:
+                        match = re.search(r"\+(\d+)%", template["impact"])
+                        if match:
+                            improvements["engagement"] = improvements.get("engagement", 0) + int(match.group(1))
+                    elif "도달률" in template["impact"]:
+                        match = re.search(r"\+(\d+)%", template["impact"])
+                        if match:
+                            improvements["reach"] = improvements.get("reach", 0) + int(match.group(1))
+                else:
+                    # Algorithm-generated tip
+                    applied_tips.append({
+                        "tip_id": tip,
+                        "description": "X 알고리즘 기반 최적화",
+                        "impact": "+10% (AI 추정)",
+                    })
+                    improvements["engagement"] = improvements.get("engagement", 0) + 10
+
+            return {
+                "original_content": content,
+                "suggested_content": suggested_content,
+                "applied_tips": applied_tips,
+                "predicted_improvement": {k: f"+{v}%" for k, v in improvements.items()},
+            }
+
+        except Exception as e:
+            print(f"Claude API error in apply_tips: {e}")
+            return None
+
+    def _apply_tips_fallback(
+        self,
+        content: str,
+        tips: list[str],
+        language: str,
+    ) -> dict:
+        """Fallback rule-based tip application."""
+        suggested_content = content
         applied_tips = []
         improvements = {}
 
-        for tip_id in selected_tips:
+        for tip_id in tips:
             if tip_id in TIP_TEMPLATES:
                 template = TIP_TEMPLATES[tip_id]
                 suggested_content = template["transform"](suggested_content, language)
@@ -216,27 +328,20 @@ class ContentOptimizer:
                     "impact": template["impact"],
                 })
 
-                # Track improvements by score type
                 if "참여도" in template["impact"]:
-                    current = improvements.get("engagement", 0)
                     match = re.search(r"\+(\d+)%", template["impact"])
                     if match:
-                        improvements["engagement"] = current + int(match.group(1))
+                        improvements["engagement"] = improvements.get("engagement", 0) + int(match.group(1))
                 elif "도달률" in template["impact"]:
-                    current = improvements.get("reach", 0)
                     match = re.search(r"\+(\d+)%", template["impact"])
                     if match:
-                        improvements["reach"] = current + int(match.group(1))
-
-        predicted_improvement = {
-            k: f"+{v}%" for k, v in improvements.items()
-        }
+                        improvements["reach"] = improvements.get("reach", 0) + int(match.group(1))
 
         return {
-            "original_content": original_content,
+            "original_content": content,
             "suggested_content": suggested_content,
             "applied_tips": applied_tips,
-            "predicted_improvement": predicted_improvement,
+            "predicted_improvement": {k: f"+{v}%" for k, v in improvements.items()},
         }
 
     async def get_post_context(self, url: str) -> Optional[dict]:

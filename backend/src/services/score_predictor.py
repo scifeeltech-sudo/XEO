@@ -12,6 +12,7 @@ from src.engine import (
     PostFeatures,
 )
 from src.services.sela_api_client import SelaAPIClient, TweetData
+from src.services.x_algorithm_advisor import XAlgorithmAdvisor
 
 
 @dataclass
@@ -48,6 +49,7 @@ class ScorePredictor:
     def __init__(self):
         self.client = SelaAPIClient()
         self.scorer = WeightedScorer()
+        self.advisor = XAlgorithmAdvisor()
         self._profile_cache: dict[str, any] = {}
 
     async def predict(
@@ -95,8 +97,15 @@ class ScorePredictor:
             context_boost,
         )
 
-        # Generate quick tips
-        quick_tips = self._generate_quick_tips(post_features, scores)
+        # Generate quick tips using X Algorithm Advisor
+        target_content = context.target_post.content if context else None
+        quick_tips = await self._generate_algorithm_tips(
+            content=content,
+            scores=scores,
+            features=post_features,
+            post_type=post_type,
+            target_content=target_content,
+        )
 
         return PostAnalysisResult(
             scores=scores,
@@ -182,18 +191,70 @@ class ScorePredictor:
 
         return context, context_boost
 
-    def _generate_quick_tips(
+    async def _generate_algorithm_tips(
+        self,
+        content: str,
+        scores: PentagonScores,
+        features: PostFeatures,
+        post_type: str = "original",
+        target_content: Optional[str] = None,
+    ) -> list[QuickTip]:
+        """Generate X Algorithm-based improvement tips using Claude AI."""
+        try:
+            result = await self.advisor.analyze_and_suggest(
+                content=content,
+                current_scores=scores,
+                post_features=features,
+                post_type=post_type,
+                target_post_content=target_content,
+                language="ko",
+            )
+
+            tips = []
+            for i, suggestion in enumerate(result.get("suggestions", [])[:5]):
+                # Determine if tip is auto-applicable
+                action = suggestion.get("action", "")
+                selectable = self._is_tip_selectable(action)
+
+                tips.append(QuickTip(
+                    tip_id=f"algo_tip_{i}",
+                    description=f"{action} ({suggestion.get('reason', '')})",
+                    impact=suggestion.get("improvement", "+0%"),
+                    target_score=suggestion.get("target_score", "engagement"),
+                    selectable=selectable,
+                ))
+
+            # Store optimized content for later use
+            self._last_optimized_content = result.get("optimized_content", content)
+            self._last_score_predictions = result.get("score_predictions", {})
+
+            return tips if tips else self._generate_fallback_tips(features, scores)
+
+        except Exception as e:
+            print(f"Algorithm tips generation error: {e}")
+            return self._generate_fallback_tips(features, scores)
+
+    def _is_tip_selectable(self, action: str) -> bool:
+        """Determine if a tip can be auto-applied."""
+        # Tips that require user input or external action
+        non_selectable_keywords = [
+            "이미지", "영상", "미디어", "사진", "동영상",
+            "image", "video", "media", "photo",
+        ]
+        return not any(keyword in action.lower() for keyword in non_selectable_keywords)
+
+    def _generate_fallback_tips(
         self,
         features: PostFeatures,
         scores: PentagonScores,
     ) -> list[QuickTip]:
-        """Generate quick improvement tips."""
+        """Generate fallback tips when AI is unavailable."""
         tips = []
 
         if not features.has_emoji:
             tips.append(QuickTip(
                 tip_id="add_emoji",
-                description="이모지를 추가하면 engagement +8% 예상",
+                description="이모지를 추가하면 engagement +8% 예상 (p_favorite 확률 상승)",
                 impact="+8%",
                 target_score="engagement",
             ))
@@ -201,7 +262,7 @@ class ScorePredictor:
         if not features.has_question:
             tips.append(QuickTip(
                 tip_id="add_question",
-                description="질문 형태로 바꾸면 reply율 +15% 예상",
+                description="질문 형태로 바꾸면 reply율 +15% 예상 (p_reply 확률 상승)",
                 impact="+15%",
                 target_score="engagement",
             ))
@@ -209,51 +270,43 @@ class ScorePredictor:
         if not features.has_media:
             tips.append(QuickTip(
                 tip_id="add_media_hint",
-                description="이미지를 추가하면 reach +20% 예상",
+                description="이미지를 추가하면 reach +20% 예상 (photo_expand 확률 상승)",
                 impact="+20%",
                 target_score="reach",
-                selectable=False,  # Can't auto-apply media
+                selectable=False,
             ))
 
         if features.char_count < 50:
             tips.append(QuickTip(
                 tip_id="expand_content",
-                description="내용을 조금 더 추가하면 dwell time 증가 예상",
+                description="내용을 더 추가하면 dwell time 증가 예상 (p_dwell 확률 상승)",
                 impact="+10%",
                 target_score="longevity",
-                selectable=False,  # Needs user input
+                selectable=False,
             ))
         elif features.char_count > 250:
             tips.append(QuickTip(
                 tip_id="shorten_content",
-                description="내용을 간결하게 줄이면 완독률 상승 예상",
+                description="내용을 간결하게 줄이면 완독률 상승 (p_not_interested 감소)",
                 impact="+5%",
                 target_score="quality",
-                selectable=False,  # Needs user decision
+                selectable=False,
             ))
 
         if features.hashtag_count == 0:
             tips.append(QuickTip(
                 tip_id="add_hashtag",
-                description="관련 해시태그 1-2개를 추가해보세요",
+                description="관련 해시태그 1-2개 추가 (p_click 확률 상승)",
                 impact="+5%",
                 target_score="reach",
-            ))
-        elif features.hashtag_count > 3:
-            tips.append(QuickTip(
-                tip_id="reduce_hashtags",
-                description="해시태그를 3개 이하로 줄이면 품질 점수 상승",
-                impact="+3%",
-                target_score="quality",
-                selectable=False,
             ))
 
         if not features.has_cta:
             tips.append(QuickTip(
                 tip_id="add_cta",
-                description="CTA를 추가하면 참여도 +10% 예상",
+                description="CTA를 추가하면 참여도 +10% 예상 (p_reply, p_repost 상승)",
                 impact="+10%",
                 target_score="engagement",
             ))
 
-        return tips[:5]  # Return max 5 tips
+        return tips[:5]
