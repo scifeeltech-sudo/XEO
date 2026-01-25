@@ -78,6 +78,7 @@ class ScorePredictor:
         post_type: Literal["original", "reply", "quote", "thread"] = "original",
         target_post_url: Optional[str] = None,
         media_type: Optional[Literal["image", "video", "gif"]] = None,
+        target_language: Optional[Literal["ko", "en", "ja", "zh"]] = None,
     ) -> PostAnalysisResult:
         """
         Predict scores for a post.
@@ -124,6 +125,7 @@ class ScorePredictor:
             features=post_features,
             post_type=post_type,
             target_content=target_content,
+            target_language=target_language,
         )
 
         return PostAnalysisResult(
@@ -217,11 +219,14 @@ class ScorePredictor:
         features: PostFeatures,
         post_type: str = "original",
         target_content: Optional[str] = None,
+        target_language: Optional[str] = None,
     ) -> list[QuickTip]:
         """Generate X Algorithm-based improvement tips using Claude AI."""
         try:
-            # Detect language from target post (for reply/quote) or user content
-            if target_content:
+            # Language priority: 1) explicit target_language, 2) target_content, 3) user content
+            if target_language:
+                language = target_language
+            elif target_content:
                 language = detect_language(target_content)
             else:
                 language = detect_language(content)

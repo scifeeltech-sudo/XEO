@@ -39,6 +39,7 @@ export function PostEditor({ username }: PostEditorProps) {
   const [applyingTips, setApplyingTips] = useState(false);
   const [polishing, setPolishing] = useState<PolishType | null>(null);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("ko");
+  const [targetLanguage, setTargetLanguage] = useState<"ko" | "en" | "ja" | "zh">("en");
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -51,22 +52,29 @@ export function PostEditor({ username }: PostEditorProps) {
 
       setLoading(true);
       try {
+        // For reply/quote mode, pass target_language to ensure tips are in correct language
+        const langToUse = postType !== "original" ? targetLanguage : undefined;
+
         const result = await api.analyzePost({
           username,
           content: text,
           post_type: postType,
           target_post_url: targetUrl || undefined,
           media_type: mediaType,
+          target_language: langToUse,
         });
         setAnalysis(result);
         // Reset tip selection when analysis changes
         setSelectedTips([]);
         setSuggestion(null);
-        // Detect language: from target post (reply/quote) or user content (original)
+        // Update detected language for apply-tips
         if (result.context?.target_post_content) {
-          // Reply/Quote: use target post language
+          // Reply/Quote: use target post language from context
           const lang = detectLanguage(result.context.target_post_content);
           setDetectedLanguage(lang);
+        } else if (postType !== "original") {
+          // Reply/Quote without context: use selected target language
+          setDetectedLanguage(targetLanguage);
         } else {
           // Original: use user content language
           const lang = detectLanguage(text);
@@ -78,7 +86,7 @@ export function PostEditor({ username }: PostEditorProps) {
         setLoading(false);
       }
     },
-    [username, postType, targetUrl, mediaType]
+    [username, postType, targetUrl, mediaType, targetLanguage]
   );
 
   // Auto-analyze only for original posts, not for reply/quote
@@ -200,13 +208,32 @@ export function PostEditor({ username }: PostEditorProps) {
 
         {/* Target URL (for reply/quote) */}
         {postType !== "original" && (
-          <input
-            type="text"
-            value={targetUrl}
-            onChange={(e) => setTargetUrl(e.target.value)}
-            placeholder="대상 포스트 URL (https://x.com/...)"
-            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={targetUrl}
+              onChange={(e) => setTargetUrl(e.target.value)}
+              placeholder="대상 포스트 URL (https://x.com/...)"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {/* Target Language Selector */}
+            <div className="flex gap-2 items-center">
+              <span className="text-gray-400 text-sm">대상 포스트 언어:</span>
+              {(["en", "ko", "ja", "zh"] as const).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => setTargetLanguage(lang)}
+                  className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                    targetLanguage === lang
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  {lang === "en" ? "English" : lang === "ko" ? "한국어" : lang === "ja" ? "日本語" : "中文"}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Content Editor */}

@@ -54,6 +54,7 @@ export interface AnalyzePostRequest {
   post_type: "original" | "reply" | "quote" | "thread";
   target_post_url?: string;
   media_type?: "image" | "video" | "gif";
+  target_language?: "ko" | "en" | "ja" | "zh";
 }
 
 export interface ApplyTipsRequest {

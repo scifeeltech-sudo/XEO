@@ -18,6 +18,7 @@ class PostAnalyzeRequest(BaseModel):
     post_type: Literal["original", "reply", "quote", "thread"] = "original"
     target_post_url: Optional[str] = None
     media_type: Optional[Literal["image", "video", "gif"]] = None
+    target_language: Optional[Literal["ko", "en", "ja", "zh"]] = None  # Target post language for reply/quote
 
 
 class ScoresResponse(BaseModel):
@@ -78,6 +79,7 @@ async def analyze_post(request: PostAnalyzeRequest):
             post_type=request.post_type,
             target_post_url=request.target_post_url,
             media_type=request.media_type,
+            target_language=request.target_language,
         )
 
         response = PostAnalysisResponse(
