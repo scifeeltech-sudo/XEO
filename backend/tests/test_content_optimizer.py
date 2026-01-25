@@ -7,8 +7,19 @@ def test_add_emoji():
     """이모지 추가 테스트"""
     content = "오늘 날씨 좋다"
     result = _add_emoji(content)
-    # Should add emoji
-    assert any(ord(c) > 0x1F300 for c in result)
+    # Should add emoji (various unicode ranges: emoticons, symbols, etc.)
+    assert result != content  # Content should be modified
+    # Check for common emoji unicode ranges
+    import re
+    emoji_pattern = re.compile(
+        r"[\U0001F600-\U0001F64F"  # emoticons
+        r"\U0001F300-\U0001F5FF"   # symbols & pictographs
+        r"\U0001F680-\U0001F6FF"   # transport & map symbols
+        r"\U00002600-\U000027BF"   # misc symbols (includes ☀️, ✅, etc.)
+        r"\U0001F900-\U0001F9FF"   # supplemental symbols
+        r"]"
+    )
+    assert emoji_pattern.search(result) is not None
 
 
 def test_add_question():
