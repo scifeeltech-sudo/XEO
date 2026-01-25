@@ -312,3 +312,63 @@ async def polish_post(request: PolishRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Generate Personalized Post Endpoint ---
+
+class PersonalizedPostRequest(BaseModel):
+    username: str
+    target_post_content: str
+    target_author: str
+    post_type: Literal["reply", "quote"]
+    language: str = "en"
+
+
+class StyleAnalysisResponse(BaseModel):
+    tone: str
+    emoji_style: str
+    topics: list[str]
+    writing_pattern: str
+
+
+class PersonalizedPostResponse(BaseModel):
+    username: str
+    generated_content: str
+    style_analysis: StyleAnalysisResponse
+    confidence: float
+    reasoning: str
+    post_type: str
+    target_author: str
+
+
+@router.post("/generate-personalized", response_model=PersonalizedPostResponse)
+async def generate_personalized_post(request: PersonalizedPostRequest):
+    """Generate a personalized post based on user's profile and writing style.
+
+    Analyzes the user's recent 10 posts to understand their:
+    - Writing style and tone
+    - Interests and topics
+    - Emoji and hashtag usage patterns
+
+    Then generates a contextually appropriate reply/quote that matches their style.
+    """
+    try:
+        result = await optimizer.generate_personalized_post(
+            username=request.username,
+            target_post_content=request.target_post_content,
+            target_author=request.target_author,
+            post_type=request.post_type,
+            language=request.language,
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail="Could not generate personalized post. User profile not found or insufficient data."
+            )
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

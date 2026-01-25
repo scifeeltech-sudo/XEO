@@ -744,3 +744,150 @@ IMPORTANT: Output must be in {target_lang_name}. Return ONLY the compressed text
                 })
 
         return changes
+
+    async def generate_personalized_post(
+        self,
+        username: str,
+        target_post_content: str,
+        target_author: str,
+        post_type: Literal["reply", "quote"],
+        language: str = "en",
+    ) -> Optional[dict]:
+        """Generate a personalized post based on user's profile and style.
+
+        Analyzes the user's recent posts to understand their:
+        - Writing style and tone
+        - Interests and topics
+        - Emoji and hashtag usage patterns
+        - Typical post length and structure
+
+        Then generates a contextually appropriate reply/quote that matches their style.
+
+        Args:
+            username: User's X username to analyze
+            target_post_content: Content of the target post being replied/quoted
+            target_author: Author of the target post
+            post_type: Type of post (reply or quote)
+            language: Target language for the generated post
+
+        Returns:
+            dict with generated_content, user_style_analysis, and confidence score
+        """
+        if not self.anthropic_client:
+            return None
+
+        # Fetch user's profile and recent posts
+        response = await self.client.get_twitter_profile(username, post_count=10)
+
+        if not response.success or not response.profile:
+            return None
+
+        profile = response.profile
+        recent_posts = [t.content for t in profile.original_tweets[:10] if t.content]
+
+        if not recent_posts:
+            return None
+
+        # Analyze user style and generate post
+        lang_names = {"ko": "Korean", "en": "English", "ja": "Japanese", "zh": "Chinese"}
+        target_lang = lang_names.get(language, "English")
+
+        system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
+
+You are an expert at analyzing writing styles and generating personalized content.
+
+Your task:
+1. Analyze the user's writing style from their recent posts
+2. Generate a {post_type} that perfectly matches their style
+3. Make it engaging and optimized for the X algorithm
+
+Style Analysis Guidelines:
+- Tone: formal vs casual, serious vs humorous
+- Emoji usage: frequency, types, positions
+- Hashtag patterns: frequency, topics
+- Sentence structure: short vs long, simple vs complex
+- Common phrases or expressions
+- Topics they engage with"""
+
+        user_prompt = f"""Analyze this user's writing style and generate a personalized {post_type}.
+
+**User's Recent Posts ({username}):**
+{chr(10).join(f'{i+1}. "{post[:200]}"' for i, post in enumerate(recent_posts[:7]))}
+
+**Target Post by @{target_author}:**
+"{target_post_content[:300]}"
+
+**Task:** Generate a {post_type} that:
+1. Perfectly matches {username}'s writing style
+2. Is a natural response to the target post
+3. Is optimized for X algorithm engagement
+4. Is written in {target_lang}
+
+Respond in this exact JSON format:
+{{
+  "generated_content": "The generated {post_type} text in {target_lang}",
+  "style_analysis": {{
+    "tone": "description of user's tone",
+    "emoji_style": "how they use emojis",
+    "topics": ["list", "of", "interests"],
+    "writing_pattern": "description of their writing pattern"
+  }},
+  "confidence": 0.85,
+  "reasoning": "Brief explanation of why this matches their style"
+}}"""
+
+        try:
+            message = self.anthropic_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1000,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+
+            response_text = message.content[0].text
+
+            # Parse JSON response
+            result = self._parse_json_response(response_text)
+            if result:
+                return {
+                    "username": username,
+                    "generated_content": result.get("generated_content", ""),
+                    "style_analysis": result.get("style_analysis", {}),
+                    "confidence": result.get("confidence", 0.7),
+                    "reasoning": result.get("reasoning", ""),
+                    "post_type": post_type,
+                    "target_author": target_author,
+                }
+
+            return None
+
+        except Exception as e:
+            print(f"Claude API error in generate_personalized_post: {e}")
+            return None
+
+    def _parse_json_response(self, text: str) -> Optional[dict]:
+        """Parse JSON from Claude's response."""
+        import json
+
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        # Try to extract JSON from markdown code block
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', text)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                pass
+
+        # Try to find JSON object in text
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if json_match:
+            try:
+                return json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        return None

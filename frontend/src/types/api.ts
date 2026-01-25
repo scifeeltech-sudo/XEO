@@ -146,3 +146,29 @@ export interface TargetPostContext {
   };
   tips: string[];
 }
+
+// Personalized Post types
+export interface StyleAnalysis {
+  tone: string;
+  emoji_style: string;
+  topics: string[];
+  writing_pattern: string;
+}
+
+export interface PersonalizedPostRequest {
+  username: string;
+  target_post_content: string;
+  target_author: string;
+  post_type: "reply" | "quote";
+  language: string;
+}
+
+export interface PersonalizedPostResponse {
+  username: string;
+  generated_content: string;
+  style_analysis: StyleAnalysis;
+  confidence: number;
+  reasoning: string;
+  post_type: string;
+  target_author: string;
+}

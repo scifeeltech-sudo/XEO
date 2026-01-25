@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext } from "@/types/api";
+import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext, PersonalizedPostResponse } from "@/types/api";
 import { RadarChart } from "@/components/charts/RadarChart";
 
 interface PostEditorProps {
@@ -45,6 +45,10 @@ export function PostEditor({ username }: PostEditorProps) {
   const [targetPostContext, setTargetPostContext] = useState<TargetPostContext | null>(null);
   const [fetchingTarget, setFetchingTarget] = useState(false);
   const [targetFetchError, setTargetFetchError] = useState<string | null>(null);
+
+  // Personalized post state
+  const [personalizedPost, setPersonalizedPost] = useState<PersonalizedPostResponse | null>(null);
+  const [fetchingPersonalized, setFetchingPersonalized] = useState(false);
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const targetUrlDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -169,6 +173,35 @@ export function PostEditor({ username }: PostEditorProps) {
       }
     };
   }, [targetUrl, postType]);
+
+  // Fetch personalized post when target context is loaded
+  useEffect(() => {
+    if (!targetPostContext || postType === "original") {
+      setPersonalizedPost(null);
+      return;
+    }
+
+    const fetchPersonalized = async () => {
+      setFetchingPersonalized(true);
+      try {
+        const result = await api.generatePersonalizedPost({
+          username,
+          target_post_content: targetPostContext.content.text,
+          target_author: targetPostContext.author.username,
+          post_type: postType as "reply" | "quote",
+          language: targetLanguage,
+        });
+        setPersonalizedPost(result);
+      } catch (error) {
+        console.error("Failed to generate personalized post:", error);
+        setPersonalizedPost(null);
+      } finally {
+        setFetchingPersonalized(false);
+      }
+    };
+
+    fetchPersonalized();
+  }, [targetPostContext, postType, username, targetLanguage]);
 
   const handleTipToggle = (tipId: string) => {
     setSelectedTips((prev) => {
@@ -413,97 +446,178 @@ export function PostEditor({ username }: PostEditorProps) {
           클립보드에 복사
         </button>
 
-        {/* Post Suggestion */}
-        {suggestion && (
-          <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
-            <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-              ✨ 포스팅 제안
-            </h3>
-            <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
-              <p className="text-white whitespace-pre-wrap">
-                {suggestion.suggested_content}
-              </p>
-              <div className="text-xs text-gray-500 mt-2">
-                {suggestion.suggested_content.length}/280
+        {/* Suggestion Panels Container */}
+        <div className="grid grid-cols-1 gap-4">
+          {/* Post Suggestion */}
+          {suggestion && (
+            <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                ✨ 포스팅 제안
+              </h3>
+              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                <p className="text-white whitespace-pre-wrap">
+                  {suggestion.suggested_content}
+                </p>
+                <div className="text-xs text-gray-500 mt-2">
+                  {suggestion.suggested_content.length}/280
+                </div>
               </div>
-            </div>
 
-            {/* Polish Buttons inside suggestion */}
-            <div className="mb-4">
-              <span className="text-gray-400 text-sm block mb-2">
-                글 다듬기 (Claude AI):
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => handlePolishSuggestion("grammar")}
-                  disabled={polishing !== null}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    polishing === "grammar"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  } disabled:opacity-50`}
-                >
-                  ✍️ 어조 유지 {polishing === "grammar" && "⏳"}
-                </button>
-                <button
-                  onClick={() => handlePolishSuggestion("twitter")}
-                  disabled={polishing !== null}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    polishing === "twitter"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  } disabled:opacity-50`}
-                >
-                  🐦 트위터 스타일 {polishing === "twitter" && "⏳"}
-                </button>
-                <button
-                  onClick={() => handlePolishSuggestion("280char")}
-                  disabled={polishing !== null}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    polishing === "280char"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  } disabled:opacity-50`}
-                >
-                  📏 280자 조정 {polishing === "280char" && "⏳"}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 mb-4">
-              {suggestion.applied_tips.map((tip) => (
-                <span
-                  key={tip.tip_id}
-                  className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded text-sm"
-                >
-                  {tip.description} ({tip.impact})
+              {/* Polish Buttons inside suggestion */}
+              <div className="mb-4">
+                <span className="text-gray-400 text-sm block mb-2">
+                  글 다듬기 (Claude AI):
                 </span>
-              ))}
-            </div>
-            {Object.keys(suggestion.predicted_improvement).length > 0 && (
-              <div className="text-sm text-green-400 mb-4">
-                예상 개선:{" "}
-                {Object.entries(suggestion.predicted_improvement)
-                  .map(([k, v]) => `${k} ${v}`)
-                  .join(", ")}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handlePolishSuggestion("grammar")}
+                    disabled={polishing !== null}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      polishing === "grammar"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    } disabled:opacity-50`}
+                  >
+                    ✍️ 어조 유지 {polishing === "grammar" && "⏳"}
+                  </button>
+                  <button
+                    onClick={() => handlePolishSuggestion("twitter")}
+                    disabled={polishing !== null}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      polishing === "twitter"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    } disabled:opacity-50`}
+                  >
+                    🐦 트위터 스타일 {polishing === "twitter" && "⏳"}
+                  </button>
+                  <button
+                    onClick={() => handlePolishSuggestion("280char")}
+                    disabled={polishing !== null}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      polishing === "280char"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    } disabled:opacity-50`}
+                  >
+                    📏 280자 조정 {polishing === "280char" && "⏳"}
+                  </button>
+                </div>
               </div>
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={handleUseSuggestion}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-              >
-                이 내용 사용하기
-              </button>
-              <button
-                onClick={() => handleCopy(suggestion.suggested_content)}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
-              >
-                📋 복사
-              </button>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {suggestion.applied_tips.map((tip) => (
+                  <span
+                    key={tip.tip_id}
+                    className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded text-sm"
+                  >
+                    {tip.description} ({tip.impact})
+                  </span>
+                ))}
+              </div>
+              {Object.keys(suggestion.predicted_improvement).length > 0 && (
+                <div className="text-sm text-green-400 mb-4">
+                  예상 개선:{" "}
+                  {Object.entries(suggestion.predicted_improvement)
+                    .map(([k, v]) => `${k} ${v}`)
+                    .join(", ")}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleUseSuggestion}
+                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  이 내용 사용하기
+                </button>
+                <button
+                  onClick={() => handleCopy(suggestion.suggested_content)}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                >
+                  📋 복사
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* AI Personalized Post (for reply/quote only) */}
+          {postType !== "original" && (fetchingPersonalized || personalizedPost) && (
+            <div className="bg-gray-800 rounded-xl p-4 border-2 border-purple-500">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                🤖 AI 맞춤 포스팅
+                <span className="text-sm font-normal text-purple-400">
+                  ({username}님의 스타일로 자동 생성)
+                </span>
+              </h3>
+
+              {fetchingPersonalized ? (
+                <div className="flex items-center justify-center py-8 text-gray-400">
+                  <span className="animate-spin mr-2">⏳</span>
+                  AI가 {username}님의 스타일을 분석하고 포스팅을 생성 중...
+                </div>
+              ) : personalizedPost && (
+                <>
+                  {/* Generated Content */}
+                  <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                    <p className="text-white whitespace-pre-wrap">
+                      {personalizedPost.generated_content}
+                    </p>
+                    <div className="text-xs text-gray-500 mt-2">
+                      {personalizedPost.generated_content.length}/280
+                    </div>
+                  </div>
+
+                  {/* Style Analysis */}
+                  <div className="mb-4 p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
+                    <div className="text-sm text-purple-300 mb-2 font-medium">
+                      📊 스타일 분석 (신뢰도: {Math.round(personalizedPost.confidence * 100)}%)
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-400">어조:</span>
+                        <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.tone}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">이모지:</span>
+                        <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.emoji_style}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-400">관심사:</span>
+                        <span className="text-gray-300 ml-1">
+                          {personalizedPost.style_analysis.topics.slice(0, 3).join(", ")}
+                        </span>
+                      </div>
+                    </div>
+                    {personalizedPost.reasoning && (
+                      <div className="mt-2 pt-2 border-t border-purple-700/30 text-xs text-gray-400">
+                        {personalizedPost.reasoning}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setContent(personalizedPost.generated_content);
+                        setPersonalizedPost(null);
+                      }}
+                      className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                    >
+                      이 내용 사용하기
+                    </button>
+                    <button
+                      onClick={() => handleCopy(personalizedPost.generated_content)}
+                      className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                    >
+                      📋 복사
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Analysis Results */}

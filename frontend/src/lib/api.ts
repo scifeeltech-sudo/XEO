@@ -7,6 +7,8 @@ import {
   PolishRequest,
   PolishResponse,
   TargetPostContext,
+  PersonalizedPostRequest,
+  PersonalizedPostResponse,
 } from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -85,6 +87,29 @@ class APIClient {
 
     if (!response.ok) {
       throw new Error(`Failed to get post context: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async generatePersonalizedPost(
+    request: PersonalizedPostRequest
+  ): Promise<PersonalizedPostResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/api/v1/post/generate-personalized`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to generate personalized post: ${response.statusText}`
+      );
     }
 
     return response.json();
