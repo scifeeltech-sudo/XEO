@@ -63,6 +63,9 @@ async def analyze_profile(username: str):
             ],
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        error_msg = str(e)
+        if "offline" in error_msg.lower() or "failed to fetch" in error_msg.lower():
+            raise HTTPException(status_code=502, detail=error_msg)
+        raise HTTPException(status_code=404, detail=error_msg)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
