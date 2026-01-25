@@ -1,5 +1,6 @@
 """Score prediction service for posts."""
 
+import re
 from dataclasses import dataclass, field
 from typing import Literal, Optional
 
@@ -13,6 +14,24 @@ from src.engine import (
 )
 from src.services.sela_api_client import SelaAPIClient, TweetData
 from src.services.x_algorithm_advisor import XAlgorithmAdvisor
+
+
+def detect_language(text: str) -> str:
+    """Detect language from text content."""
+    if not text:
+        return "en"
+
+    # Korean characters (Hangul)
+    if re.search(r'[\uac00-\ud7af]', text):
+        return "ko"
+    # Japanese (Hiragana, Katakana)
+    if re.search(r'[\u3040-\u309f\u30a0-\u30ff]', text):
+        return "ja"
+    # Chinese characters (CJK)
+    if re.search(r'[\u4e00-\u9fff]', text):
+        return "zh"
+    # Default to English
+    return "en"
 
 
 @dataclass
@@ -201,13 +220,19 @@ class ScorePredictor:
     ) -> list[QuickTip]:
         """Generate X Algorithm-based improvement tips using Claude AI."""
         try:
+            # Detect language from target post (for reply/quote) or user content
+            if target_content:
+                language = detect_language(target_content)
+            else:
+                language = detect_language(content)
+
             result = await self.advisor.analyze_and_suggest(
                 content=content,
                 current_scores=scores,
                 post_features=features,
                 post_type=post_type,
                 target_post_content=target_content,
-                language="ko",
+                language=language,
             )
 
             tips = []
@@ -228,11 +253,16 @@ class ScorePredictor:
             self._last_optimized_content = result.get("optimized_content", content)
             self._last_score_predictions = result.get("score_predictions", {})
 
-            return tips if tips else self._generate_fallback_tips(features, scores)
+            return tips if tips else self._generate_fallback_tips(features, scores, language)
 
         except Exception as e:
             print(f"Algorithm tips generation error: {e}")
-            return self._generate_fallback_tips(features, scores)
+            # Detect language for fallback
+            if target_content:
+                language = detect_language(target_content)
+            else:
+                language = detect_language(content)
+            return self._generate_fallback_tips(features, scores, language)
 
     def _is_tip_selectable(self, action: str) -> bool:
         """Determine if a tip can be auto-applied."""
@@ -247,14 +277,58 @@ class ScorePredictor:
         self,
         features: PostFeatures,
         scores: PentagonScores,
+        language: str = "ko",
     ) -> list[QuickTip]:
         """Generate fallback tips when AI is unavailable."""
         tips = []
 
+        # Multilingual tip messages
+        messages = {
+            "ko": {
+                "add_emoji": "이모지를 추가하면 engagement +8% 예상 (p_favorite 확률 상승)",
+                "add_question": "질문 형태로 바꾸면 reply율 +15% 예상 (p_reply 확률 상승)",
+                "add_media": "이미지를 추가하면 reach +20% 예상 (photo_expand 확률 상승)",
+                "expand_content": "내용을 더 추가하면 dwell time 증가 예상 (p_dwell 확률 상승)",
+                "shorten_content": "내용을 간결하게 줄이면 완독률 상승 (p_not_interested 감소)",
+                "add_hashtag": "관련 해시태그 1-2개 추가 (p_click 확률 상승)",
+                "add_cta": "CTA를 추가하면 참여도 +10% 예상 (p_reply, p_repost 상승)",
+            },
+            "en": {
+                "add_emoji": "Add emojis for +8% engagement (increases p_favorite)",
+                "add_question": "Add a question for +15% reply rate (increases p_reply)",
+                "add_media": "Add an image for +20% reach (increases photo_expand)",
+                "expand_content": "Add more content to increase dwell time (increases p_dwell)",
+                "shorten_content": "Make it more concise to increase completion rate (decreases p_not_interested)",
+                "add_hashtag": "Add 1-2 relevant hashtags (increases p_click)",
+                "add_cta": "Add a CTA for +10% engagement (increases p_reply, p_repost)",
+            },
+            "ja": {
+                "add_emoji": "絵文字を追加すると+8%エンゲージメント向上 (p_favorite上昇)",
+                "add_question": "質問形式に変えると+15%リプライ率向上 (p_reply上昇)",
+                "add_media": "画像を追加すると+20%リーチ向上 (photo_expand上昇)",
+                "expand_content": "内容を追加するとdwell time増加 (p_dwell上昇)",
+                "shorten_content": "簡潔にすると完読率向上 (p_not_interested減少)",
+                "add_hashtag": "関連ハッシュタグを1-2個追加 (p_click上昇)",
+                "add_cta": "CTAを追加すると+10%エンゲージメント向上 (p_reply, p_repost上昇)",
+            },
+            "zh": {
+                "add_emoji": "添加表情符号可提升8%互动率 (提高p_favorite)",
+                "add_question": "添加问题可提升15%回复率 (提高p_reply)",
+                "add_media": "添加图片可提升20%触达率 (提高photo_expand)",
+                "expand_content": "增加内容可提升停留时间 (提高p_dwell)",
+                "shorten_content": "简洁表达可提升完读率 (降低p_not_interested)",
+                "add_hashtag": "添加1-2个相关标签 (提高p_click)",
+                "add_cta": "添加行动号召可提升10%互动率 (提高p_reply, p_repost)",
+            },
+        }
+
+        # Use English as fallback if language not found
+        msg = messages.get(language, messages["en"])
+
         if not features.has_emoji:
             tips.append(QuickTip(
                 tip_id="add_emoji",
-                description="이모지를 추가하면 engagement +8% 예상 (p_favorite 확률 상승)",
+                description=msg["add_emoji"],
                 impact="+8%",
                 target_score="engagement",
             ))
@@ -262,7 +336,7 @@ class ScorePredictor:
         if not features.has_question:
             tips.append(QuickTip(
                 tip_id="add_question",
-                description="질문 형태로 바꾸면 reply율 +15% 예상 (p_reply 확률 상승)",
+                description=msg["add_question"],
                 impact="+15%",
                 target_score="engagement",
             ))
@@ -270,7 +344,7 @@ class ScorePredictor:
         if not features.has_media:
             tips.append(QuickTip(
                 tip_id="add_media_hint",
-                description="이미지를 추가하면 reach +20% 예상 (photo_expand 확률 상승)",
+                description=msg["add_media"],
                 impact="+20%",
                 target_score="reach",
                 selectable=False,
@@ -279,7 +353,7 @@ class ScorePredictor:
         if features.char_count < 50:
             tips.append(QuickTip(
                 tip_id="expand_content",
-                description="내용을 더 추가하면 dwell time 증가 예상 (p_dwell 확률 상승)",
+                description=msg["expand_content"],
                 impact="+10%",
                 target_score="longevity",
                 selectable=False,
@@ -287,7 +361,7 @@ class ScorePredictor:
         elif features.char_count > 250:
             tips.append(QuickTip(
                 tip_id="shorten_content",
-                description="내용을 간결하게 줄이면 완독률 상승 (p_not_interested 감소)",
+                description=msg["shorten_content"],
                 impact="+5%",
                 target_score="quality",
                 selectable=False,
@@ -296,7 +370,7 @@ class ScorePredictor:
         if features.hashtag_count == 0:
             tips.append(QuickTip(
                 tip_id="add_hashtag",
-                description="관련 해시태그 1-2개 추가 (p_click 확률 상승)",
+                description=msg["add_hashtag"],
                 impact="+5%",
                 target_score="reach",
             ))
@@ -304,7 +378,7 @@ class ScorePredictor:
         if not features.has_cta:
             tips.append(QuickTip(
                 tip_id="add_cta",
-                description="CTA를 추가하면 참여도 +10% 예상 (p_reply, p_repost 상승)",
+                description=msg["add_cta"],
                 impact="+10%",
                 target_score="engagement",
             ))
