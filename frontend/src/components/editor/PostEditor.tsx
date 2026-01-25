@@ -62,9 +62,14 @@ export function PostEditor({ username }: PostEditorProps) {
         // Reset tip selection when analysis changes
         setSelectedTips([]);
         setSuggestion(null);
-        // Detect language from context if available
+        // Detect language: from target post (reply/quote) or user content (original)
         if (result.context?.target_post_content) {
+          // Reply/Quote: use target post language
           const lang = detectLanguage(result.context.target_post_content);
+          setDetectedLanguage(lang);
+        } else {
+          // Original: use user content language
+          const lang = detectLanguage(text);
           setDetectedLanguage(lang);
         }
       } catch (error) {
