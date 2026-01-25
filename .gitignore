@@ -39,4 +39,4 @@ htmlcov/
 .pytest_cache/
 
 # Build
-*.lock
+# Note: uv.lock should be committed for reproducible builds
