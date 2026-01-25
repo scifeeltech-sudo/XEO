@@ -58,7 +58,14 @@ export function PostEditor({ username }: PostEditorProps) {
     [username, postType, targetUrl, mediaType]
   );
 
+  // Auto-analyze only for original posts, not for reply/quote
   useEffect(() => {
+    if (postType !== "original") {
+      // For reply/quote, clear analysis when content changes
+      // User must click "분석하기" button manually
+      return;
+    }
+
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
@@ -71,7 +78,14 @@ export function PostEditor({ username }: PostEditorProps) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [content, analyzePost]);
+  }, [content, analyzePost, postType]);
+
+  // Clear analysis when switching post type
+  useEffect(() => {
+    setAnalysis(null);
+    setSelectedTips([]);
+    setSuggestion(null);
+  }, [postType]);
 
   const handleTipToggle = (tipId: string) => {
     setSelectedTips((prev) => {
@@ -376,9 +390,17 @@ export function PostEditor({ username }: PostEditorProps) {
           </>
         )}
 
-        {!analysis && !loading && content.length === 0 && (
+        {!analysis && !loading && (
           <div className="text-center py-12 text-gray-500">
-            포스트 내용을 입력하면 실시간으로 스코어가 분석됩니다
+            {postType === "original" ? (
+              "포스트 내용을 입력하면 실시간으로 스코어가 분석됩니다"
+            ) : (
+              <>
+                대상 포스트 URL과 내용을 입력한 후
+                <br />
+                <span className="text-blue-400">[🔍 분석하기]</span> 버튼을 눌러주세요
+              </>
+            )}
           </div>
         )}
       </div>
