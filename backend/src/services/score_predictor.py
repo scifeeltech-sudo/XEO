@@ -1,6 +1,6 @@
 """Score prediction service for posts."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 from src.engine import (
@@ -12,6 +12,16 @@ from src.engine import (
     PostFeatures,
 )
 from src.services.sela_api_client import SelaAPIClient, TweetData
+
+
+@dataclass
+class QuickTip:
+    """Structured quick tip for post optimization."""
+    tip_id: str
+    description: str
+    impact: str
+    target_score: str
+    selectable: bool = True
 
 
 @dataclass
@@ -28,7 +38,7 @@ class PostAnalysisResult:
     scores: PentagonScores
     probabilities: ActionProbabilities
     features: PostFeatures
-    quick_tips: list[str]
+    quick_tips: list[QuickTip]
     context: Optional[ContextInfo] = None
 
 
@@ -176,27 +186,74 @@ class ScorePredictor:
         self,
         features: PostFeatures,
         scores: PentagonScores,
-    ) -> list[str]:
+    ) -> list[QuickTip]:
         """Generate quick improvement tips."""
         tips = []
 
         if not features.has_emoji:
-            tips.append("이모지를 추가하면 engagement +5% 예상")
+            tips.append(QuickTip(
+                tip_id="add_emoji",
+                description="이모지를 추가하면 engagement +8% 예상",
+                impact="+8%",
+                target_score="engagement",
+            ))
 
         if not features.has_question:
-            tips.append("질문 형태로 바꾸면 reply율 +15% 예상")
+            tips.append(QuickTip(
+                tip_id="add_question",
+                description="질문 형태로 바꾸면 reply율 +15% 예상",
+                impact="+15%",
+                target_score="engagement",
+            ))
 
         if not features.has_media:
-            tips.append("이미지를 추가하면 reach +20% 예상")
+            tips.append(QuickTip(
+                tip_id="add_media_hint",
+                description="이미지를 추가하면 reach +20% 예상",
+                impact="+20%",
+                target_score="reach",
+                selectable=False,  # Can't auto-apply media
+            ))
 
         if features.char_count < 50:
-            tips.append("내용을 조금 더 추가하면 dwell time 증가 예상")
+            tips.append(QuickTip(
+                tip_id="expand_content",
+                description="내용을 조금 더 추가하면 dwell time 증가 예상",
+                impact="+10%",
+                target_score="longevity",
+                selectable=False,  # Needs user input
+            ))
         elif features.char_count > 250:
-            tips.append("내용을 간결하게 줄이면 완독률 상승 예상")
+            tips.append(QuickTip(
+                tip_id="shorten_content",
+                description="내용을 간결하게 줄이면 완독률 상승 예상",
+                impact="+5%",
+                target_score="quality",
+                selectable=False,  # Needs user decision
+            ))
 
         if features.hashtag_count == 0:
-            tips.append("관련 해시태그 1-2개를 추가해보세요")
+            tips.append(QuickTip(
+                tip_id="add_hashtag",
+                description="관련 해시태그 1-2개를 추가해보세요",
+                impact="+5%",
+                target_score="reach",
+            ))
         elif features.hashtag_count > 3:
-            tips.append("해시태그를 3개 이하로 줄이면 품질 점수 상승")
+            tips.append(QuickTip(
+                tip_id="reduce_hashtags",
+                description="해시태그를 3개 이하로 줄이면 품질 점수 상승",
+                impact="+3%",
+                target_score="quality",
+                selectable=False,
+            ))
+
+        if not features.has_cta:
+            tips.append(QuickTip(
+                tip_id="add_cta",
+                description="CTA를 추가하면 참여도 +10% 예상",
+                impact="+10%",
+                target_score="engagement",
+            ))
 
         return tips[:5]  # Return max 5 tips

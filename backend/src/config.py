@@ -16,12 +16,23 @@ class Settings(BaseSettings):
     sela_api_key: str = ""
     sela_principal_id: str = ""
 
+    # Supabase
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+
+    # OpenAI
+    openai_api_key: str = ""
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
 
+    # CORS (comma-separated origins for production)
+    cors_origins: str = "*"
+
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 @lru_cache

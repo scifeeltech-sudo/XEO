@@ -25,6 +25,14 @@ export interface ProfileAnalysis {
   recommendations: Recommendation[];
 }
 
+export interface QuickTip {
+  tip_id: string;
+  description: string;
+  impact: string;
+  target_score: string;
+  selectable: boolean;
+}
+
 export interface PostContext {
   target_post_id: string;
   target_post_content: string;
@@ -36,7 +44,7 @@ export interface PostContext {
 export interface PostAnalysis {
   scores: PentagonScores;
   breakdown: Record<string, number>;
-  quick_tips: string[];
+  quick_tips: QuickTip[];
   context?: PostContext;
 }
 
@@ -46,4 +54,23 @@ export interface AnalyzePostRequest {
   post_type: "original" | "reply" | "quote" | "thread";
   target_post_url?: string;
   media_type?: "image" | "video" | "gif";
+}
+
+export interface ApplyTipsRequest {
+  username: string;
+  original_content: string;
+  selected_tips: string[];
+}
+
+export interface AppliedTip {
+  tip_id: string;
+  description: string;
+  impact: string;
+}
+
+export interface ApplyTipsResponse {
+  original_content: string;
+  suggested_content: string;
+  applied_tips: AppliedTip[];
+  predicted_improvement: Record<string, string>;
 }

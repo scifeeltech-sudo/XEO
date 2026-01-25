@@ -1,4 +1,10 @@
-import { ProfileAnalysis, PostAnalysis, AnalyzePostRequest } from "@/types/api";
+import {
+  ProfileAnalysis,
+  PostAnalysis,
+  AnalyzePostRequest,
+  ApplyTipsRequest,
+  ApplyTipsResponse,
+} from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -32,6 +38,22 @@ class APIClient {
 
     if (!response.ok) {
       throw new Error(`Failed to analyze post: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async applyTips(request: ApplyTipsRequest): Promise<ApplyTipsResponse> {
+    const response = await fetch(`${this.baseUrl}/api/v1/post/apply-tips`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to apply tips: ${response.statusText}`);
     }
 
     return response.json();

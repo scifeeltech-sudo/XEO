@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { PostAnalysis } from "@/types/api";
+import { PostAnalysis, ApplyTipsResponse } from "@/types/api";
 import { RadarChart } from "@/components/charts/RadarChart";
 
 interface PostEditorProps {
@@ -20,6 +20,12 @@ export function PostEditor({ username }: PostEditorProps) {
   >();
   const [analysis, setAnalysis] = useState<PostAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Tip selection state
+  const [selectedTips, setSelectedTips] = useState<string[]>([]);
+  const [suggestion, setSuggestion] = useState<ApplyTipsResponse | null>(null);
+  const [applyingTips, setApplyingTips] = useState(false);
+
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const analyzePost = useCallback(
@@ -39,6 +45,9 @@ export function PostEditor({ username }: PostEditorProps) {
           media_type: mediaType,
         });
         setAnalysis(result);
+        // Reset tip selection when analysis changes
+        setSelectedTips([]);
+        setSuggestion(null);
       } catch (error) {
         console.error("Analysis failed:", error);
       } finally {
@@ -63,9 +72,48 @@ export function PostEditor({ username }: PostEditorProps) {
     };
   }, [content, analyzePost]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(content);
+  const handleTipToggle = (tipId: string) => {
+    setSelectedTips((prev) => {
+      if (prev.includes(tipId)) {
+        return prev.filter((id) => id !== tipId);
+      }
+      // Max 3 tips
+      if (prev.length >= 3) {
+        return prev;
+      }
+      return [...prev, tipId];
+    });
+  };
+
+  const handleApplyTips = async () => {
+    if (selectedTips.length === 0) return;
+
+    setApplyingTips(true);
+    try {
+      const result = await api.applyTips({
+        username,
+        original_content: content,
+        selected_tips: selectedTips,
+      });
+      setSuggestion(result);
+    } catch (error) {
+      console.error("Failed to apply tips:", error);
+    } finally {
+      setApplyingTips(false);
+    }
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
     alert("클립보드에 복사되었습니다!");
+  };
+
+  const handleUseSuggestion = () => {
+    if (suggestion) {
+      setContent(suggestion.suggested_content);
+      setSuggestion(null);
+      setSelectedTips([]);
+    }
   };
 
   return (
@@ -135,12 +183,58 @@ export function PostEditor({ username }: PostEditorProps) {
 
         {/* Copy Button */}
         <button
-          onClick={handleCopy}
+          onClick={() => handleCopy(content)}
           disabled={!content}
           className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
         >
           클립보드에 복사
         </button>
+
+        {/* Post Suggestion */}
+        {suggestion && (
+          <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
+            <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              ✨ 포스팅 제안
+            </h3>
+            <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+              <p className="text-white whitespace-pre-wrap">
+                {suggestion.suggested_content}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {suggestion.applied_tips.map((tip) => (
+                <span
+                  key={tip.tip_id}
+                  className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded text-sm"
+                >
+                  {tip.description} ({tip.impact})
+                </span>
+              ))}
+            </div>
+            {Object.keys(suggestion.predicted_improvement).length > 0 && (
+              <div className="text-sm text-green-400 mb-4">
+                예상 개선:{" "}
+                {Object.entries(suggestion.predicted_improvement)
+                  .map(([k, v]) => `${k} ${v}`)
+                  .join(", ")}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleUseSuggestion}
+                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+              >
+                이 내용 사용하기
+              </button>
+              <button
+                onClick={() => handleCopy(suggestion.suggested_content)}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+              >
+                📋 복사
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Analysis Results */}
@@ -168,23 +262,58 @@ export function PostEditor({ username }: PostEditorProps) {
               </div>
             </div>
 
-            {/* Quick Tips */}
+            {/* Quick Tips with Checkboxes */}
             {analysis.quick_tips.length > 0 && (
               <div className="bg-gray-800 rounded-xl p-4">
                 <h3 className="text-lg font-semibold text-white mb-4">
-                  빠른 팁
+                  💡 빠른 팁{" "}
+                  <span className="text-sm font-normal text-gray-400">
+                    (최대 3개 선택)
+                  </span>
                 </h3>
-                <ul className="space-y-2">
-                  {analysis.quick_tips.map((tip, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2 text-gray-300"
-                    >
-                      <span className="text-yellow-400">💡</span>
-                      {tip}
+                <ul className="space-y-3">
+                  {analysis.quick_tips.map((tip) => (
+                    <li key={tip.tip_id} className="flex items-start gap-3">
+                      {tip.selectable ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedTips.includes(tip.tip_id)}
+                          onChange={() => handleTipToggle(tip.tip_id)}
+                          disabled={
+                            !selectedTips.includes(tip.tip_id) &&
+                            selectedTips.length >= 3
+                          }
+                          className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                      ) : (
+                        <span className="mt-1 text-gray-500">💡</span>
+                      )}
+                      <div className="flex-1">
+                        <span className="text-gray-300">{tip.description}</span>
+                        <span
+                          className={`ml-2 text-sm ${
+                            tip.target_score === "engagement"
+                              ? "text-green-400"
+                              : tip.target_score === "reach"
+                              ? "text-blue-400"
+                              : "text-yellow-400"
+                          }`}
+                        >
+                          {tip.impact} {tip.target_score}
+                        </span>
+                      </div>
                     </li>
                   ))}
                 </ul>
+                {selectedTips.length > 0 && (
+                  <button
+                    onClick={handleApplyTips}
+                    disabled={applyingTips}
+                    className="w-full mt-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-medium rounded-lg transition-colors"
+                  >
+                    {applyingTips ? "적용 중..." : `✨ ${selectedTips.length}개 팁 반영하기`}
+                  </button>
+                )}
               </div>
             )}
 

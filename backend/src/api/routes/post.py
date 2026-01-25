@@ -1,13 +1,15 @@
 """Post analysis API routes."""
 
 from typing import Literal, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from src.services.score_predictor import ScorePredictor
+from src.services.content_optimizer import ContentOptimizer
 
 router = APIRouter()
 predictor = ScorePredictor()
+optimizer = ContentOptimizer()
 
 
 class PostAnalyzeRequest(BaseModel):
@@ -43,6 +45,14 @@ class ProbabilitiesResponse(BaseModel):
     p_report: float
 
 
+class QuickTipResponse(BaseModel):
+    tip_id: str
+    description: str
+    impact: str
+    target_score: str
+    selectable: bool
+
+
 class ContextResponse(BaseModel):
     target_post_id: str
     target_post_content: str
@@ -54,7 +64,7 @@ class ContextResponse(BaseModel):
 class PostAnalysisResponse(BaseModel):
     scores: ScoresResponse
     breakdown: ProbabilitiesResponse
-    quick_tips: list[str]
+    quick_tips: list[QuickTipResponse]
     context: Optional[ContextResponse] = None
 
 
@@ -88,7 +98,16 @@ async def analyze_post(request: PostAnalyzeRequest):
                 p_mute_author=result.probabilities.p_mute_author,
                 p_report=result.probabilities.p_report,
             ),
-            quick_tips=result.quick_tips,
+            quick_tips=[
+                QuickTipResponse(
+                    tip_id=tip.tip_id,
+                    description=tip.description,
+                    impact=tip.impact,
+                    target_score=tip.target_score,
+                    selectable=tip.selectable,
+                )
+                for tip in result.quick_tips
+            ],
         )
 
         if result.context:
@@ -101,5 +120,142 @@ async def analyze_post(request: PostAnalyzeRequest):
             )
 
         return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Apply Tips Endpoint ---
+
+class ApplyTipsRequest(BaseModel):
+    username: str
+    original_content: str
+    selected_tips: list[str]  # List of tip_ids
+
+
+class AppliedTipResponse(BaseModel):
+    tip_id: str
+    description: str
+    impact: str
+
+
+class ApplyTipsResponse(BaseModel):
+    original_content: str
+    suggested_content: str
+    applied_tips: list[AppliedTipResponse]
+    predicted_improvement: dict[str, str]
+
+
+@router.post("/apply-tips", response_model=ApplyTipsResponse)
+async def apply_tips(request: ApplyTipsRequest):
+    """Apply selected tips to generate optimized post suggestion."""
+    try:
+        result = await optimizer.apply_tips(
+            username=request.username,
+            original_content=request.original_content,
+            selected_tips=request.selected_tips,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Post Context Endpoint ---
+
+class PostAuthorResponse(BaseModel):
+    username: str
+    display_name: Optional[str] = None
+    followers_count: int
+    verified: bool = False
+
+
+class PostMetricsResponse(BaseModel):
+    likes: int
+    reposts: int
+    replies: int
+    quotes: int = 0
+    views: int
+
+
+class PostContentResponse(BaseModel):
+    text: str
+    media: list[dict] = []
+    hashtags: list[str] = []
+
+
+class PostContextAnalysis(BaseModel):
+    age_minutes: int
+    freshness: str
+    virality_status: str
+    reply_saturation: str
+
+
+class OpportunityScore(BaseModel):
+    overall: int
+    factors: dict[str, int]
+
+
+class PostContextResponse(BaseModel):
+    post_id: str
+    post_url: str
+    author: PostAuthorResponse
+    content: PostContentResponse
+    metrics: PostMetricsResponse
+    created_at: Optional[str] = None
+    analysis: PostContextAnalysis
+    opportunity_score: OpportunityScore
+    tips: list[str]
+
+
+@router.get("/context", response_model=PostContextResponse)
+async def get_post_context(url: str = Query(..., description="Target post URL")):
+    """Get context information for a target post (for reply/quote)."""
+    try:
+        result = await optimizer.get_post_context(url)
+        if not result:
+            raise HTTPException(status_code=404, detail="Post not found")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Optimize Endpoint ---
+
+class OptimizeRequest(BaseModel):
+    username: str
+    content: str
+    target_score: Literal["reach", "engagement", "virality", "quality", "longevity"]
+    style: Literal["conservative", "balanced", "aggressive"] = "balanced"
+
+
+class ChangeResponse(BaseModel):
+    type: str
+    impact: str
+
+
+class OptimizedVersionResponse(BaseModel):
+    content: str
+    style: str
+    predicted_scores: ScoresResponse
+    changes: list[ChangeResponse]
+
+
+class OptimizeResponse(BaseModel):
+    original_content: str
+    optimized_versions: list[OptimizedVersionResponse]
+
+
+@router.post("/optimize", response_model=OptimizeResponse)
+async def optimize_post(request: OptimizeRequest):
+    """Generate AI-optimized versions of a post."""
+    try:
+        result = await optimizer.optimize(
+            username=request.username,
+            content=request.content,
+            target_score=request.target_score,
+            style=request.style,
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
