@@ -1,7 +1,9 @@
 """Score prediction service for posts."""
 
+import asyncio
 import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Literal, Optional
 
 from src.engine import (
@@ -14,24 +16,44 @@ from src.engine import (
 )
 from src.services.sela_api_client import SelaAPIClient, TweetData
 from src.services.x_algorithm_advisor import XAlgorithmAdvisor
+from src.db.supabase_client import SupabaseCache
+
+# Compiled regex patterns for faster language detection
+_KOREAN_PATTERN = re.compile(r'[\uac00-\ud7af]')
+_JAPANESE_PATTERN = re.compile(r'[\u3040-\u309f\u30a0-\u30ff]')
+_CHINESE_PATTERN = re.compile(r'[\u4e00-\u9fff]')
+
+# Language detection cache
+_language_cache: dict[int, str] = {}
 
 
 def detect_language(text: str) -> str:
-    """Detect language from text content."""
+    """Detect language from text content (with caching)."""
     if not text:
         return "en"
 
+    # Check cache first using text hash
+    text_hash = hash(text[:100])  # Only hash first 100 chars for speed
+    if text_hash in _language_cache:
+        return _language_cache[text_hash]
+
     # Korean characters (Hangul)
-    if re.search(r'[\uac00-\ud7af]', text):
-        return "ko"
+    if _KOREAN_PATTERN.search(text):
+        result = "ko"
     # Japanese (Hiragana, Katakana)
-    if re.search(r'[\u3040-\u309f\u30a0-\u30ff]', text):
-        return "ja"
+    elif _JAPANESE_PATTERN.search(text):
+        result = "ja"
     # Chinese characters (CJK)
-    if re.search(r'[\u4e00-\u9fff]', text):
-        return "zh"
-    # Default to English
-    return "en"
+    elif _CHINESE_PATTERN.search(text):
+        result = "zh"
+    else:
+        result = "en"
+
+    # Cache result (limit cache size to 1000 entries)
+    if len(_language_cache) < 1000:
+        _language_cache[text_hash] = result
+
+    return result
 
 
 @dataclass
@@ -69,6 +91,7 @@ class ScorePredictor:
         self.client = SelaAPIClient()
         self.scorer = WeightedScorer()
         self.advisor = XAlgorithmAdvisor()
+        self.cache = SupabaseCache()
         self._profile_cache: dict[str, any] = {}
 
     async def predict(
@@ -93,24 +116,31 @@ class ScorePredictor:
         Returns:
             PostAnalysisResult with scores and recommendations
         """
-        # Get or fetch profile data
-        profile_features = await self._get_profile_features(username)
-
-        # Extract post features
+        # Extract post features (sync, fast)
         post_features = extract_post_features(
             content,
             media_type=media_type,
             is_quote=(post_type == "quote"),
         )
 
-        # Get context for reply/quote
-        context = None
-        context_boost = None
+        # Detect language once upfront
+        detected_language = target_language or detect_language(content)
 
+        # PARALLEL EXECUTION: Fetch profile and context simultaneously
         if post_type in ("reply", "quote") and target_post_url:
-            context, context_boost = await self._analyze_context(target_post_url)
+            # Run both tasks in parallel
+            profile_task = self._get_profile_features(username)
+            context_task = self._analyze_context(target_post_url)
+            profile_features, (context, context_boost) = await asyncio.gather(
+                profile_task, context_task
+            )
+        else:
+            # Only fetch profile
+            profile_features = await self._get_profile_features(username)
+            context = None
+            context_boost = None
 
-        # Calculate scores
+        # Calculate scores (sync, fast)
         scores, probs = self.scorer.analyze_post(
             post_features,
             profile_features,
@@ -119,13 +149,16 @@ class ScorePredictor:
 
         # Generate quick tips using X Algorithm Advisor
         target_content = context.target_post.content if context else None
+        if target_content and not target_language:
+            detected_language = detect_language(target_content)
+
         quick_tips = await self._generate_algorithm_tips(
             content=content,
             scores=scores,
             features=post_features,
             post_type=post_type,
             target_content=target_content,
-            target_language=target_language,
+            target_language=detected_language,
         )
 
         return PostAnalysisResult(
@@ -137,15 +170,37 @@ class ScorePredictor:
         )
 
     async def _get_profile_features(self, username: str):
-        """Get profile features (with caching)."""
+        """Get profile features (with multi-layer caching)."""
+        # Layer 1: In-memory cache (fastest)
         if username in self._profile_cache:
             return self._profile_cache[username]
 
-        response = await self.client.get_twitter_profile(username, post_count=20)
+        # Layer 2: Supabase cache (persistent, 1-hour TTL)
+        try:
+            cached = await self.cache.get_profile_cache(username)
+            if cached and cached.get("profile_data"):
+                from src.engine.feature_extractor import ProfileFeatures
+                features = ProfileFeatures(**cached["profile_data"])
+                self._profile_cache[username] = features
+                return features
+        except Exception:
+            pass  # Continue to API call if cache fails
+
+        # Layer 3: Sela API (slowest, reduced from 20 to 10 posts)
+        response = await self.client.get_twitter_profile(username, post_count=10)
 
         if response.success and response.profile:
             features = extract_profile_features(response.profile)
             self._profile_cache[username] = features
+
+            # Save to Supabase cache (async, don't wait)
+            try:
+                asyncio.create_task(
+                    self.cache.set_profile_cache(username, features.__dict__)
+                )
+            except Exception:
+                pass
+
             return features
 
         # Return default features if fetch fails

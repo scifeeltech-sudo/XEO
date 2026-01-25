@@ -153,3 +153,49 @@ class SupabaseCache:
             }
         except Exception:
             return {"total_analyses": 0, "data": []}
+
+    # ==================== Claude Suggestion Cache ====================
+
+    async def get_suggestion_cache(
+        self,
+        content_hash: str,
+    ) -> Optional[dict[str, Any]]:
+        """Get cached Claude suggestion if not expired."""
+        try:
+            result = (
+                self.client.table("suggestion_cache")
+                .select("*")
+                .eq("content_hash", content_hash)
+                .gte("expires_at", datetime.now(timezone.utc).isoformat())
+                .limit(1)
+                .execute()
+            )
+
+            if result.data:
+                return result.data[0].get("suggestion_data")
+            return None
+        except Exception:
+            return None
+
+    async def set_suggestion_cache(
+        self,
+        content_hash: str,
+        suggestion_data: dict[str, Any],
+        ttl_minutes: int = 60,
+    ) -> bool:
+        """Cache Claude suggestion with TTL."""
+        try:
+            self.client.table("suggestion_cache").upsert(
+                {
+                    "content_hash": content_hash,
+                    "suggestion_data": suggestion_data,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "expires_at": (
+                        datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
+                    ).isoformat(),
+                },
+                on_conflict="content_hash",
+            ).execute()
+            return True
+        except Exception:
+            return False

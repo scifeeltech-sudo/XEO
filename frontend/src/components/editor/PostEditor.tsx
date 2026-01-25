@@ -108,7 +108,7 @@ export function PostEditor({ username }: PostEditorProps) {
     }
     debounceRef.current = setTimeout(() => {
       analyzePost(content);
-    }, 500);
+    }, 300);  // Reduced from 500ms for faster feedback
 
     return () => {
       if (debounceRef.current) {
@@ -161,7 +161,7 @@ export function PostEditor({ username }: PostEditorProps) {
       } finally {
         setFetchingTarget(false);
       }
-    }, 800);
+    }, 400);  // Reduced from 800ms for faster response
 
     return () => {
       if (targetUrlDebounceRef.current) {

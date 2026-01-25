@@ -1,11 +1,14 @@
 """X Algorithm-based content advisor using Claude AI."""
 
+import asyncio
+import hashlib
 import json
 from typing import Optional, Literal
 import anthropic
 
 from src.config import get_settings
 from src.engine import PostFeatures, PentagonScores
+from src.db.supabase_client import SupabaseCache
 
 # X Algorithm Knowledge Base - Key factors that affect scoring
 X_ALGORITHM_KNOWLEDGE = """
@@ -130,6 +133,18 @@ class XAlgorithmAdvisor:
             if settings.anthropic_api_key
             else None
         )
+        self.cache = SupabaseCache()
+        self._memory_cache: dict[str, dict] = {}  # In-memory cache
+
+    def _get_cache_key(
+        self,
+        content: str,
+        scores: PentagonScores,
+        language: str,
+    ) -> str:
+        """Generate cache key from content and context."""
+        cache_data = f"{content[:100]}|{scores.reach:.0f}|{scores.engagement:.0f}|{language}"
+        return hashlib.md5(cache_data.encode()).hexdigest()
 
     async def analyze_and_suggest(
         self,
@@ -148,6 +163,22 @@ class XAlgorithmAdvisor:
         """
         if not self.client:
             return self._fallback_suggestions(content, current_scores, post_features, language)
+
+        # Check cache first
+        cache_key = self._get_cache_key(content, current_scores, language)
+
+        # Layer 1: In-memory cache
+        if cache_key in self._memory_cache:
+            return self._memory_cache[cache_key]
+
+        # Layer 2: Supabase cache
+        try:
+            cached = await self.cache.get_suggestion_cache(cache_key)
+            if cached:
+                self._memory_cache[cache_key] = cached
+                return cached
+        except Exception:
+            pass
 
         # Build context about the post
         context_info = self._build_context(post_features, post_type, target_post_content)
@@ -216,7 +247,7 @@ Provide suggestions in this JSON format:
         try:
             message = self.client.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=1500,
+                max_tokens=1000,  # Reduced from 1500 for faster response
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             )
@@ -226,6 +257,16 @@ Provide suggestions in this JSON format:
             # Extract JSON from response
             result = self._parse_json_response(response_text)
             if result:
+                # Save to cache (async, don't wait)
+                self._memory_cache[cache_key] = result
+                if len(self._memory_cache) > 500:  # Limit memory cache size
+                    self._memory_cache.pop(next(iter(self._memory_cache)))
+                try:
+                    asyncio.create_task(
+                        self.cache.set_suggestion_cache(cache_key, result, ttl_minutes=60)
+                    )
+                except Exception:
+                    pass
                 return result
 
             return self._fallback_suggestions(content, current_scores, post_features, language)
