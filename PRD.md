@@ -24,8 +24,8 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 | Frontend | Next.js (Node.js) | 웹 애플리케이션 UI |
 | Database | Supabase | 분석 결과 캐싱, 통계 저장 |
 | Hosting | Vercel | 웹 애플리케이션 배포 |
-| X Data | Sela API | X 데이터 접근 (프로필, 포스트, 메트릭스) |
-| AI Engine | Claude API | 글 다듬기, 콘텐츠 최적화 |
+| X Data | Sela API | X 데이터 접근 (프로필, 메트릭스) |
+| AI Engine | Claude API | 글 다듬기, 콘텐츠 최적화, X 알고리즘 기반 팁 생성 |
 
 > **인증 불필요**: 회원가입/로그인 없이 X 유저네임만 입력하면 바로 사용 가능
 
@@ -130,10 +130,22 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 │  │  └─────────────────────────────────────────────────────────┘     │    │
 │  └─────────────────────────────────────────────────────────────────┘    │
 │                                                                         │
+│  [대상 포스트를 가져올 수 없는 경우]                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  🌐 대상 포스트 언어 선택:                                        │    │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐               │    │
+│  │  │ English │ │ 한국어   │ │ 日本語  │ │  中文   │               │    │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘               │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### Sela API로 가져오는 컨텍스트 데이터
+
+> **⚠️ 제한사항**: Sela API의 `TWITTER_POST` 스크래핑 타입이 현재 작동하지 않습니다 (빈 결과 반환).
+> 대안으로 `TWITTER_PROFILE`을 사용하여 작성자의 최근 포스트 50개 내에서 대상 포스트를 검색합니다.
+> 최근 포스트에 없는 경우, 사용자가 **대상 포스트 언어를 직접 선택**할 수 있는 UI를 제공합니다.
 
 **Reply (답글) 분석 시:**
 ```
@@ -325,6 +337,59 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 
 ---
 
+### 3.2.4 X 알고리즘 기반 팁 생성 (X Algorithm Advisor)
+
+빠른 팁과 포스팅 제안을 X의 공개 알고리즘 지식을 기반으로 Claude AI가 생성합니다.
+
+#### X 알고리즘 19가지 참여 액션
+
+X 알고리즘이 예측하는 사용자 행동:
+
+**긍정적 액션 (콘텐츠 부스트):**
+| 액션 | 설명 | 영향 |
+|------|------|------|
+| favorite (좋아요) | 주요 랭킹 지표 | 높음 |
+| reply (답글) | 댓글/답글 | 높음 |
+| repost (리포스트) | 리트윗/공유 | 높음 |
+| quote (인용) | 인용 트윗 | 높음 |
+| click | 콘텐츠/링크 클릭 | 중간 |
+| profile_click | 프로필 방문 | 중간 |
+| share | 외부 공유 | 중간 |
+| dwell | 머무르기 시간 | 중간 |
+| video_view | 비디오 시청 | 중간 |
+| follow_author | 작성자 팔로우 | 높음 |
+
+**부정적 액션 (콘텐츠 억제):**
+| 액션 | 설명 | 영향 |
+|------|------|------|
+| not_interested | 관심없음 표시 | 높음 (부정) |
+| block_author | 작성자 차단 | 매우 높음 (부정) |
+| mute_author | 작성자 뮤트 | 높음 (부정) |
+| report | 신고 | 매우 높음 (부정) |
+
+#### Claude AI 팁 생성 프로세스
+
+```
+입력:
+├── 포스트 내용
+├── 현재 예측 점수 (5각형)
+├── 포스트 타입 (원본/답글/인용)
+├── 대상 포스트 내용 (답글/인용 시)
+└── 언어 설정
+
+처리:
+├── X 알고리즘 지식 기반 분석
+├── Claude AI로 구체적 개선 제안 생성
+└── 예상 점수 향상 계산
+
+출력:
+├── 빠른 팁 목록 (선택 가능)
+├── 예상 영향도
+└── 적용 시 예상 점수 변화
+```
+
+---
+
 ### 3.3 최적화 추천 (Optimization Recommender)
 
 #### 기능 설명
@@ -466,6 +531,10 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 │  │  │ ProfileAnalyzer │  │ ScorePredictor  │  │ ContentOptimizer│        │  │
 │  │  │ Service         │  │ Service         │  │ Service         │        │  │
 │  │  └─────────────────┘  └─────────────────┘  └─────────────────┘        │  │
+│  │  ┌─────────────────┐                                                  │  │
+│  │  │ XAlgorithmAdvisor│  ← X 알고리즘 기반 Claude AI 팁 생성            │  │
+│  │  │ Service         │                                                  │  │
+│  │  └─────────────────┘                                                  │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 │                                        │                                    │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
@@ -622,7 +691,9 @@ Request:
     "post_type": "original",            // "original" | "reply" | "quote" | "thread"
     "target_post_url": null,            // [reply/quote 필수] 대상 포스트 URL
     "thread_contents": null,            // [thread] 스레드 포스트 배열
-    "media_type": null                  // "image" | "video" | "gif" | null
+    "media_type": null,                 // "image" | "video" | "gif" | null
+    "target_language": null             // [reply/quote 선택] "ko" | "en" | "ja" | "zh" | null
+                                        // 대상 포스트를 가져올 수 없을 때 사용자가 직접 지정
 }
 
 // Reply 예시
@@ -631,7 +702,8 @@ Request:
     "content": "This is a great point!",
     "post_type": "reply",
     "target_post_url": "https://x.com/elonmusk/status/1234567890",
-    "media_type": null
+    "media_type": null,
+    "target_language": "en"          // 대상 포스트 언어 (선택적)
 }
 
 // Quote 예시
@@ -640,7 +712,8 @@ Request:
     "content": "Interesting perspective on AI 🤔",
     "post_type": "quote",
     "target_post_url": "https://x.com/techcrunch/status/9876543210",
-    "media_type": "image"
+    "media_type": "image",
+    "target_language": null          // null이면 자동 감지 시도
 }
 
 Response:
@@ -1004,7 +1077,8 @@ backend/
 │   │   ├── profile_analyzer.py
 │   │   ├── score_predictor.py
 │   │   ├── content_optimizer.py
-│   │   └── sela_api_client.py  # Sela API 클라이언트
+│   │   ├── x_algorithm_advisor.py  # X 알고리즘 기반 팁 생성 (Claude AI)
+│   │   └── sela_api_client.py      # Sela API 클라이언트
 │   │
 │   ├── engine/
 │   │   ├── __init__.py
@@ -1196,6 +1270,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 - Sela API Rate Limit 준수 필요
 - Sela API에서 제공하는 데이터 범위 내에서 분석
 - API 키 보안 관리 필수
+- **TWITTER_POST 스크래핑 제한**: 개별 포스트 직접 스크래핑 불가 (빈 결과 반환)
+  - 대안: TWITTER_PROFILE로 작성자의 최근 50개 포스트 내에서 검색
+  - 최근 포스트에 없는 경우 사용자가 언어 직접 선택
 
 ### 12.2 알고리즘 한계
 - 공개된 알고리즘은 단순화된 버전
@@ -1263,9 +1340,10 @@ SCORE_WEIGHTS = {
 
 ---
 
-*문서 버전: 1.4*
-*최종 수정: 2025-01-26*
+*문서 버전: 1.5*
+*최종 수정: 2026-01-26*
 *변경사항:
 - v1.2: 포스팅 제안 기능 추가 (빠른 팁 선택 → 최적화된 포스팅 자동 생성)
 - v1.3: 답글/인용 분석 및 글 다듬기 기능 추가 (분석하기 버튼, Claude 기반 글 다듬기 3종)
-- v1.4: 글 다듬기 버튼 위치를 포스팅 제안 박스 내부로 이동, 다국어 자동 감지 및 지원 (한/영/일/중)*
+- v1.4: 글 다듬기 버튼 위치를 포스팅 제안 박스 내부로 이동, 다국어 자동 감지 및 지원 (한/영/일/중)
+- v1.5: X 알고리즘 기반 팁 생성 (XAlgorithmAdvisor), Sela API TWITTER_POST 제한사항 문서화, 대상 포스트 언어 수동 선택 UI 추가*
