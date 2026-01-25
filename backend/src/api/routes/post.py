@@ -269,6 +269,7 @@ class PolishRequest(BaseModel):
     content: str
     polish_type: Literal["grammar", "twitter", "280char"]
     language: Optional[str] = None
+    target_post_content: Optional[str] = None  # For tone matching in grammar mode
 
 
 class PolishChangeResponse(BaseModel):
@@ -295,8 +296,8 @@ async def polish_post(request: PolishRequest):
     """Polish text using Claude AI.
 
     Polish types:
-    - grammar: Fix grammar while maintaining original tone
-    - twitter: Convert to Twitter-style with emojis and hashtags
+    - grammar: Match target post tone while fixing grammar
+    - twitter: Convert to casual, impactful Twitter style
     - 280char: Compress to fit 280 character limit
     """
     try:
@@ -304,6 +305,7 @@ async def polish_post(request: PolishRequest):
             content=request.content,
             polish_type=request.polish_type,
             language=request.language,
+            target_post_content=request.target_post_content,
         )
         return result
     except Exception as e:

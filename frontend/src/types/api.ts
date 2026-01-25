@@ -82,6 +82,7 @@ export interface PolishRequest {
   content: string;
   polish_type: PolishType;
   language?: string;
+  target_post_content?: string;
 }
 
 export interface PolishChange {

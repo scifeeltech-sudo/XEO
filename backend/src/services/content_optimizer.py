@@ -422,46 +422,89 @@ class ContentOptimizer:
         content: str,
         polish_type: Literal["grammar", "twitter", "280char"],
         language: Optional[str] = None,
+        target_post_content: Optional[str] = None,
     ) -> dict:
         """Polish text using Claude API.
 
         Args:
             content: Original content to polish
             polish_type: Type of polish to apply
-                - grammar: Fix grammar while maintaining tone
-                - twitter: Convert to Twitter-style casual tone
+                - grammar: Match target post tone while fixing grammar
+                - twitter: Convert to casual, impactful Twitter style
                 - 280char: Compress to 280 characters while keeping message
-            language: Optional language code (auto-detected if not provided)
+            language: Target language code (ko, en, ja, zh)
+            target_post_content: Content of target post (for tone matching)
         """
+        # Detect language if not provided
+        detected_language = language or self._detect_language(content)
+
+        # Language names for prompts
+        lang_names = {
+            "ko": "Korean",
+            "en": "English",
+            "ja": "Japanese",
+            "zh": "Chinese"
+        }
+        target_lang_name = lang_names.get(detected_language, "English")
+
         if not self.anthropic_client:
             # Fallback without API: minimal transformations
-            return self._polish_fallback(content, polish_type)
+            return self._polish_fallback(content, polish_type, detected_language)
 
         # Build prompt based on polish type
         if polish_type == "grammar":
-            system_prompt = """You are a text editor. Fix grammar, spelling, and punctuation errors while maintaining the original tone and style. Do not change the meaning or add unnecessary content. Keep it natural and authentic."""
-            user_prompt = f"""Polish this text by fixing grammar errors. Maintain the original tone and style. Only fix what's wrong:
+            system_prompt = f"""You are a social media content editor. Your job is to:
+1. Fix grammar, spelling, and punctuation errors
+2. Make the text sound natural and intelligent (not awkward or dumb)
+3. Maintain a similar tone to the reference post if provided
+4. Output MUST be in {target_lang_name}
+5. Keep the core message intact
+6. Make it readable and understandable by humans"""
 
-Text: {content}
+            target_context = ""
+            if target_post_content:
+                target_context = f"\nReference post tone to match:\n\"{target_post_content[:200]}\"\n"
 
-Return ONLY the polished text, nothing else."""
+            user_prompt = f"""Polish this text to sound natural and proper. Fix any grammar issues and make it sound intelligent.
+{target_context}
+Text to polish: {content}
+
+IMPORTANT: Output must be in {target_lang_name}. Return ONLY the polished text, nothing else."""
 
         elif polish_type == "twitter":
-            system_prompt = """You are a Twitter/X content expert. Transform text into engaging Twitter-style content: short, impactful sentences with appropriate emojis and hashtags. Keep it casual and engaging."""
-            user_prompt = f"""Transform this into Twitter-style content. Make it short, punchy, and engaging. Add emojis and hashtags where appropriate:
+            system_prompt = f"""You are a Twitter/X viral content creator. Your job is to:
+1. Transform text into engaging, casual Twitter-style content
+2. Make it short, punchy, and impactful
+3. Add appropriate emojis (1-3 max, not excessive)
+4. Use conversational, friendly tone
+5. Output MUST be in {target_lang_name}
+6. Keep it human-readable and understandable
+7. Make people want to engage (like, reply, retweet)"""
+
+            user_prompt = f"""Transform this into viral Twitter-style content. Make it casual, engaging, and impactful.
 
 Text: {content}
 
+IMPORTANT:
+- Output must be in {target_lang_name}
+- Keep under 280 characters if possible
+- Make it sound like a real person, not a bot
 Return ONLY the transformed text, nothing else."""
 
         elif polish_type == "280char":
-            system_prompt = """You are a concise writer. Compress text to fit within 280 characters while preserving the core message. Remove unnecessary words but keep the meaning intact."""
-            user_prompt = f"""Compress this text to 280 characters or less. Keep the core message intact:
+            system_prompt = f"""You are a concise writer. Your job is to:
+1. Compress text to fit within 280 characters
+2. Preserve the core message and meaning
+3. Remove unnecessary words but keep it natural
+4. Output MUST be in {target_lang_name}
+5. Keep it readable and understandable"""
+
+            user_prompt = f"""Compress this text to 280 characters or less while keeping the core message.
 
 Text: {content}
 Current length: {len(content)} characters
 
-Return ONLY the compressed text, nothing else."""
+IMPORTANT: Output must be in {target_lang_name}. Return ONLY the compressed text, nothing else."""
 
         try:
             message = self.anthropic_client.messages.create(
@@ -474,9 +517,6 @@ Return ONLY the compressed text, nothing else."""
             )
 
             polished_content = message.content[0].text.strip()
-
-            # Detect language if not provided
-            detected_language = language or self._detect_language(content)
 
             # Generate changes description
             changes = self._describe_changes(content, polished_content, polish_type)
@@ -495,10 +535,13 @@ Return ONLY the compressed text, nothing else."""
 
         except Exception as e:
             # Fallback on API error
-            return self._polish_fallback(content, polish_type)
+            return self._polish_fallback(content, polish_type, detected_language)
 
     def _polish_fallback(
-        self, content: str, polish_type: Literal["grammar", "twitter", "280char"]
+        self,
+        content: str,
+        polish_type: Literal["grammar", "twitter", "280char"],
+        language: str = "ko",
     ) -> dict:
         """Fallback polish without API."""
         polished_content = content
@@ -515,7 +558,7 @@ Return ONLY the compressed text, nothing else."""
             "original_content": content,
             "polished_content": polished_content,
             "polish_type": polish_type,
-            "language_detected": self._detect_language(content),
+            "language_detected": language,
             "changes": [
                 {"type": "fallback", "description": "API not available, minimal changes applied"}
             ],

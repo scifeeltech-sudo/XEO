@@ -159,6 +159,7 @@ export function PostEditor({ username }: PostEditorProps) {
         content: suggestion.suggested_content,
         polish_type: type,
         language: detectedLanguage,
+        target_post_content: analysis?.context?.target_post_content,
       });
       setSuggestion({
         ...suggestion,
