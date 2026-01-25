@@ -172,6 +172,16 @@ export function PostEditor({ username }: PostEditorProps) {
           />
         </div>
 
+        {/* Analyze Button */}
+        <button
+          onClick={() => analyzePost(content)}
+          disabled={!content.trim() || loading}
+          className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <span>🔍</span>
+          <span>{loading ? "분석 중..." : "분석하기"}</span>
+        </button>
+
         {/* Media Type */}
         <div className="flex gap-2 items-center">
           <span className="text-gray-400">미디어:</span>
