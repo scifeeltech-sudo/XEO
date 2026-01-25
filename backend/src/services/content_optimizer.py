@@ -5,6 +5,9 @@ import random
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
+import anthropic
+
+from src.config import get_settings
 from src.services.sela_api_client import SelaAPIClient
 
 
@@ -134,6 +137,12 @@ class ContentOptimizer:
 
     def __init__(self):
         self.client = SelaAPIClient()
+        settings = get_settings()
+        self.anthropic_client = (
+            anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            if settings.anthropic_api_key
+            else None
+        )
 
     async def apply_tips(
         self,
@@ -360,3 +369,183 @@ class ContentOptimizer:
             "original_content": content,
             "optimized_versions": versions,
         }
+
+    async def polish(
+        self,
+        content: str,
+        polish_type: Literal["grammar", "twitter", "280char"],
+        language: Optional[str] = None,
+    ) -> dict:
+        """Polish text using Claude API.
+
+        Args:
+            content: Original content to polish
+            polish_type: Type of polish to apply
+                - grammar: Fix grammar while maintaining tone
+                - twitter: Convert to Twitter-style casual tone
+                - 280char: Compress to 280 characters while keeping message
+            language: Optional language code (auto-detected if not provided)
+        """
+        if not self.anthropic_client:
+            # Fallback without API: minimal transformations
+            return self._polish_fallback(content, polish_type)
+
+        # Build prompt based on polish type
+        if polish_type == "grammar":
+            system_prompt = """You are a text editor. Fix grammar, spelling, and punctuation errors while maintaining the original tone and style. Do not change the meaning or add unnecessary content. Keep it natural and authentic."""
+            user_prompt = f"""Polish this text by fixing grammar errors. Maintain the original tone and style. Only fix what's wrong:
+
+Text: {content}
+
+Return ONLY the polished text, nothing else."""
+
+        elif polish_type == "twitter":
+            system_prompt = """You are a Twitter/X content expert. Transform text into engaging Twitter-style content: short, impactful sentences with appropriate emojis and hashtags. Keep it casual and engaging."""
+            user_prompt = f"""Transform this into Twitter-style content. Make it short, punchy, and engaging. Add emojis and hashtags where appropriate:
+
+Text: {content}
+
+Return ONLY the transformed text, nothing else."""
+
+        elif polish_type == "280char":
+            system_prompt = """You are a concise writer. Compress text to fit within 280 characters while preserving the core message. Remove unnecessary words but keep the meaning intact."""
+            user_prompt = f"""Compress this text to 280 characters or less. Keep the core message intact:
+
+Text: {content}
+Current length: {len(content)} characters
+
+Return ONLY the compressed text, nothing else."""
+
+        try:
+            message = self.anthropic_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=500,
+                messages=[
+                    {"role": "user", "content": user_prompt}
+                ],
+                system=system_prompt,
+            )
+
+            polished_content = message.content[0].text.strip()
+
+            # Detect language if not provided
+            detected_language = language or self._detect_language(content)
+
+            # Generate changes description
+            changes = self._describe_changes(content, polished_content, polish_type)
+
+            return {
+                "original_content": content,
+                "polished_content": polished_content,
+                "polish_type": polish_type,
+                "language_detected": detected_language,
+                "changes": changes,
+                "character_count": {
+                    "original": len(content),
+                    "polished": len(polished_content),
+                },
+            }
+
+        except Exception as e:
+            # Fallback on API error
+            return self._polish_fallback(content, polish_type)
+
+    def _polish_fallback(
+        self, content: str, polish_type: Literal["grammar", "twitter", "280char"]
+    ) -> dict:
+        """Fallback polish without API."""
+        polished_content = content
+
+        if polish_type == "twitter":
+            # Add emoji if not present
+            polished_content = _add_emoji(content)
+        elif polish_type == "280char":
+            # Simple truncation
+            if len(content) > 280:
+                polished_content = content[:277] + "..."
+
+        return {
+            "original_content": content,
+            "polished_content": polished_content,
+            "polish_type": polish_type,
+            "language_detected": self._detect_language(content),
+            "changes": [
+                {"type": "fallback", "description": "API not available, minimal changes applied"}
+            ],
+            "character_count": {
+                "original": len(content),
+                "polished": len(polished_content),
+            },
+        }
+
+    def _detect_language(self, content: str) -> str:
+        """Simple language detection based on character ranges."""
+        # Check for Korean characters
+        if re.search(r"[\uac00-\ud7af]", content):
+            return "ko"
+        # Check for Japanese
+        if re.search(r"[\u3040-\u309f\u30a0-\u30ff]", content):
+            return "ja"
+        # Check for Chinese
+        if re.search(r"[\u4e00-\u9fff]", content):
+            return "zh"
+        # Default to English
+        return "en"
+
+    def _describe_changes(
+        self, original: str, polished: str, polish_type: str
+    ) -> list[dict]:
+        """Describe what changes were made."""
+        changes = []
+
+        # Check character count difference
+        len_diff = len(polished) - len(original)
+        if abs(len_diff) > 5:
+            if len_diff < 0:
+                changes.append({
+                    "type": "compression",
+                    "description": f"Reduced by {abs(len_diff)} characters",
+                })
+            else:
+                changes.append({
+                    "type": "expansion",
+                    "description": f"Added {len_diff} characters",
+                })
+
+        # Check for emoji additions
+        orig_emoji = len(re.findall(r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF]", original))
+        polished_emoji = len(re.findall(r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF]", polished))
+        if polished_emoji > orig_emoji:
+            changes.append({
+                "type": "added_emoji",
+                "description": f"Added {polished_emoji - orig_emoji} emoji(s)",
+            })
+
+        # Check for hashtag additions
+        orig_tags = len(re.findall(r"#\w+", original))
+        polished_tags = len(re.findall(r"#\w+", polished))
+        if polished_tags > orig_tags:
+            changes.append({
+                "type": "added_hashtags",
+                "description": f"Added {polished_tags - orig_tags} hashtag(s)",
+            })
+
+        # Default description based on type
+        if not changes:
+            if polish_type == "grammar":
+                changes.append({
+                    "type": "grammar_fix",
+                    "description": "Grammar and style improvements applied",
+                })
+            elif polish_type == "twitter":
+                changes.append({
+                    "type": "style_change",
+                    "description": "Converted to Twitter-friendly style",
+                })
+            elif polish_type == "280char":
+                changes.append({
+                    "type": "compression",
+                    "description": "Compressed to fit 280 character limit",
+                })
+
+        return changes

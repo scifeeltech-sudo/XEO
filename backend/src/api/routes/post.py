@@ -259,3 +259,50 @@ async def optimize_post(request: OptimizeRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Polish Endpoint (Claude) ---
+
+class PolishRequest(BaseModel):
+    content: str
+    polish_type: Literal["grammar", "twitter", "280char"]
+    language: Optional[str] = None
+
+
+class PolishChangeResponse(BaseModel):
+    type: str
+    description: str
+
+
+class CharacterCountResponse(BaseModel):
+    original: int
+    polished: int
+
+
+class PolishResponse(BaseModel):
+    original_content: str
+    polished_content: str
+    polish_type: str
+    language_detected: str
+    changes: list[PolishChangeResponse]
+    character_count: CharacterCountResponse
+
+
+@router.post("/polish", response_model=PolishResponse)
+async def polish_post(request: PolishRequest):
+    """Polish text using Claude AI.
+
+    Polish types:
+    - grammar: Fix grammar while maintaining original tone
+    - twitter: Convert to Twitter-style with emojis and hashtags
+    - 280char: Compress to fit 280 character limit
+    """
+    try:
+        result = await optimizer.polish(
+            content=request.content,
+            polish_type=request.polish_type,
+            language=request.language,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

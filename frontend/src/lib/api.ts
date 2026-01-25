@@ -4,6 +4,8 @@ import {
   AnalyzePostRequest,
   ApplyTipsRequest,
   ApplyTipsResponse,
+  PolishRequest,
+  PolishResponse,
 } from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -54,6 +56,22 @@ class APIClient {
 
     if (!response.ok) {
       throw new Error(`Failed to apply tips: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async polishPost(request: PolishRequest): Promise<PolishResponse> {
+    const response = await fetch(`${this.baseUrl}/api/v1/post/polish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to polish post: ${response.statusText}`);
     }
 
     return response.json();

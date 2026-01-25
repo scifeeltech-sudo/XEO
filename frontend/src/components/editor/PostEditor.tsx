@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { PostAnalysis, ApplyTipsResponse } from "@/types/api";
 import { RadarChart } from "@/components/charts/RadarChart";
+import { PolishButtons } from "@/components/editor/PolishButtons";
 
 interface PostEditorProps {
   username: string;
@@ -159,6 +160,16 @@ export function PostEditor({ username }: PostEditorProps) {
           <div className="absolute bottom-3 right-3 text-gray-500 text-sm">
             {content.length}/280
           </div>
+        </div>
+
+        {/* Polish Buttons */}
+        <div className="space-y-2">
+          <span className="text-gray-400 text-sm">글 다듬기 (Claude AI):</span>
+          <PolishButtons
+            content={content}
+            onPolished={(polished) => setContent(polished)}
+            disabled={loading}
+          />
         </div>
 
         {/* Media Type */}

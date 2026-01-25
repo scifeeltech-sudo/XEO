@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = ""
 
+    # Anthropic (Claude API for polish)
+    anthropic_api_key: str = ""
+
     # Server
     host: str = "0.0.0.0"
     port: int = 8000

@@ -74,3 +74,28 @@ export interface ApplyTipsResponse {
   applied_tips: AppliedTip[];
   predicted_improvement: Record<string, string>;
 }
+
+export type PolishType = "grammar" | "twitter" | "280char";
+
+export interface PolishRequest {
+  content: string;
+  polish_type: PolishType;
+  language?: string;
+}
+
+export interface PolishChange {
+  type: string;
+  description: string;
+}
+
+export interface PolishResponse {
+  original_content: string;
+  polished_content: string;
+  polish_type: string;
+  language_detected: string;
+  changes: PolishChange[];
+  character_count: {
+    original: number;
+    polished: number;
+  };
+}
