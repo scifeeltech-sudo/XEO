@@ -1,0 +1,237 @@
+"use client";
+
+import { useState, useCallback, useEffect, useRef } from "react";
+import { api } from "@/lib/api";
+import { PostAnalysis } from "@/types/api";
+import { RadarChart } from "@/components/charts/RadarChart";
+
+interface PostEditorProps {
+  username: string;
+}
+
+export function PostEditor({ username }: PostEditorProps) {
+  const [content, setContent] = useState("");
+  const [postType, setPostType] = useState<"original" | "reply" | "quote">(
+    "original"
+  );
+  const [targetUrl, setTargetUrl] = useState("");
+  const [mediaType, setMediaType] = useState<
+    "image" | "video" | "gif" | undefined
+  >();
+  const [analysis, setAnalysis] = useState<PostAnalysis | null>(null);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const analyzePost = useCallback(
+    async (text: string) => {
+      if (!text.trim()) {
+        setAnalysis(null);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const result = await api.analyzePost({
+          username,
+          content: text,
+          post_type: postType,
+          target_post_url: targetUrl || undefined,
+          media_type: mediaType,
+        });
+        setAnalysis(result);
+      } catch (error) {
+        console.error("Analysis failed:", error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [username, postType, targetUrl, mediaType]
+  );
+
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      analyzePost(content);
+    }, 500);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [content, analyzePost]);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(content);
+    alert("클립보드에 복사되었습니다!");
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Editor */}
+      <div className="space-y-6">
+        {/* Post Type Selector */}
+        <div className="flex gap-2">
+          {(["original", "reply", "quote"] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => setPostType(type)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                postType === type
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              {type === "original" ? "원본" : type === "reply" ? "답글" : "인용"}
+            </button>
+          ))}
+        </div>
+
+        {/* Target URL (for reply/quote) */}
+        {postType !== "original" && (
+          <input
+            type="text"
+            value={targetUrl}
+            onChange={(e) => setTargetUrl(e.target.value)}
+            placeholder="대상 포스트 URL (https://x.com/...)"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )}
+
+        {/* Content Editor */}
+        <div className="relative">
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="포스트 내용을 입력하세요..."
+            className="w-full h-48 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+          <div className="absolute bottom-3 right-3 text-gray-500 text-sm">
+            {content.length}/280
+          </div>
+        </div>
+
+        {/* Media Type */}
+        <div className="flex gap-2 items-center">
+          <span className="text-gray-400">미디어:</span>
+          {[undefined, "image", "video", "gif"].map((type) => (
+            <button
+              key={type ?? "none"}
+              onClick={() =>
+                setMediaType(type as "image" | "video" | "gif" | undefined)
+              }
+              className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                mediaType === type
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              }`}
+            >
+              {type ?? "없음"}
+            </button>
+          ))}
+        </div>
+
+        {/* Copy Button */}
+        <button
+          onClick={handleCopy}
+          disabled={!content}
+          className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+        >
+          클립보드에 복사
+        </button>
+      </div>
+
+      {/* Analysis Results */}
+      <div className="space-y-6">
+        {loading && (
+          <div className="text-center py-8 text-gray-400">분석 중...</div>
+        )}
+
+        {analysis && !loading && (
+          <>
+            {/* Radar Chart */}
+            <div className="bg-gray-800 rounded-xl p-4">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                예상 스코어
+              </h3>
+              <RadarChart scores={analysis.scores} size={280} />
+              <div className="text-center mt-2">
+                <span className="text-2xl font-bold text-blue-400">
+                  {(
+                    Object.values(analysis.scores).reduce((a, b) => a + b, 0) /
+                    5
+                  ).toFixed(0)}
+                </span>
+                <span className="text-gray-400 ml-2">/ 100</span>
+              </div>
+            </div>
+
+            {/* Quick Tips */}
+            {analysis.quick_tips.length > 0 && (
+              <div className="bg-gray-800 rounded-xl p-4">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  빠른 팁
+                </h3>
+                <ul className="space-y-2">
+                  {analysis.quick_tips.map((tip, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 text-gray-300"
+                    >
+                      <span className="text-yellow-400">💡</span>
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Context (for reply/quote) */}
+            {analysis.context && (
+              <div className="bg-gray-800 rounded-xl p-4">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  컨텍스트 분석
+                </h3>
+                <div className="space-y-3">
+                  <div className="p-3 bg-gray-700/50 rounded-lg">
+                    <div className="text-sm text-gray-400">대상 포스트</div>
+                    <div className="text-white">
+                      @{analysis.context.target_author}
+                    </div>
+                    <div className="text-gray-300 text-sm mt-1">
+                      {analysis.context.target_post_content.slice(0, 100)}...
+                    </div>
+                  </div>
+                  {Object.entries(analysis.context.context_adjustments).map(
+                    ([key, value]) => (
+                      <div key={key} className="flex justify-between text-sm">
+                        <span className="text-gray-400">{key}</span>
+                        <span
+                          className={
+                            value.startsWith("+")
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }
+                        >
+                          {value}
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {!analysis && !loading && content.length === 0 && (
+          <div className="text-center py-12 text-gray-500">
+            포스트 내용을 입력하면 실시간으로 스코어가 분석됩니다
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
