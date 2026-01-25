@@ -102,3 +102,47 @@ export interface PolishResponse {
     polished: number;
   };
 }
+
+// Target Post Context types
+export interface TargetPostAuthor {
+  username: string;
+  display_name?: string;
+  followers_count: number;
+  verified: boolean;
+}
+
+export interface TargetPostMetrics {
+  likes: number;
+  reposts: number;
+  replies: number;
+  quotes: number;
+  views: number;
+}
+
+export interface TargetPostContent {
+  text: string;
+  media: { type: string; url: string }[];
+  hashtags: string[];
+}
+
+export interface TargetPostAnalysis {
+  age_minutes: number;
+  freshness: string;
+  virality_status: string;
+  reply_saturation: string;
+}
+
+export interface TargetPostContext {
+  post_id: string;
+  post_url: string;
+  author: TargetPostAuthor;
+  content: TargetPostContent;
+  metrics: TargetPostMetrics;
+  created_at?: string;
+  analysis: TargetPostAnalysis;
+  opportunity_score: {
+    overall: number;
+    factors: Record<string, number>;
+  };
+  tips: string[];
+}

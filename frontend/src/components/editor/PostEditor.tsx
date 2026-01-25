@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { PostAnalysis, ApplyTipsResponse, PolishType } from "@/types/api";
+import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext } from "@/types/api";
 import { RadarChart } from "@/components/charts/RadarChart";
 
 interface PostEditorProps {
@@ -41,7 +41,13 @@ export function PostEditor({ username }: PostEditorProps) {
   const [detectedLanguage, setDetectedLanguage] = useState<string>("ko");
   const [targetLanguage, setTargetLanguage] = useState<"ko" | "en" | "ja" | "zh">("en");
 
+  // Target post preview state
+  const [targetPostContext, setTargetPostContext] = useState<TargetPostContext | null>(null);
+  const [fetchingTarget, setFetchingTarget] = useState(false);
+  const [targetFetchError, setTargetFetchError] = useState<string | null>(null);
+
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const targetUrlDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const analyzePost = useCallback(
     async (text: string) => {
@@ -116,7 +122,53 @@ export function PostEditor({ username }: PostEditorProps) {
     setAnalysis(null);
     setSelectedTips([]);
     setSuggestion(null);
+    setTargetPostContext(null);
+    setTargetFetchError(null);
   }, [postType]);
+
+  // Fetch target post context when URL changes
+  useEffect(() => {
+    if (postType === "original" || !targetUrl) {
+      setTargetPostContext(null);
+      setTargetFetchError(null);
+      return;
+    }
+
+    // Validate URL format
+    if (!targetUrl.match(/^https?:\/\/(x\.com|twitter\.com)\/\w+\/status\/\d+/)) {
+      setTargetPostContext(null);
+      setTargetFetchError(null);
+      return;
+    }
+
+    if (targetUrlDebounceRef.current) {
+      clearTimeout(targetUrlDebounceRef.current);
+    }
+
+    targetUrlDebounceRef.current = setTimeout(async () => {
+      setFetchingTarget(true);
+      setTargetFetchError(null);
+      try {
+        const context = await api.getPostContext(targetUrl);
+        setTargetPostContext(context);
+        // Auto-detect language from target post
+        const lang = detectLanguage(context.content.text);
+        setTargetLanguage(lang as "ko" | "en" | "ja" | "zh");
+      } catch (error) {
+        console.error("Failed to fetch target post:", error);
+        setTargetPostContext(null);
+        setTargetFetchError("대상 포스트를 가져올 수 없습니다. 언어를 직접 선택해주세요.");
+      } finally {
+        setFetchingTarget(false);
+      }
+    }, 800);
+
+    return () => {
+      if (targetUrlDebounceRef.current) {
+        clearTimeout(targetUrlDebounceRef.current);
+      }
+    };
+  }, [targetUrl, postType]);
 
   const handleTipToggle = (tipId: string) => {
     setSelectedTips((prev) => {
@@ -216,9 +268,82 @@ export function PostEditor({ username }: PostEditorProps) {
               placeholder="대상 포스트 URL (https://x.com/...)"
               className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            {/* Target Language Selector */}
+
+            {/* Target Post Preview */}
+            {fetchingTarget && (
+              <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <span className="animate-spin">⏳</span>
+                  <span>대상 포스트 가져오는 중...</span>
+                </div>
+              </div>
+            )}
+
+            {targetPostContext && !fetchingTarget && (
+              <div className="p-4 bg-gray-800 border border-blue-500/50 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-semibold text-white">
+                        @{targetPostContext.author.username}
+                      </span>
+                      {targetPostContext.author.verified && (
+                        <span className="text-blue-400">✓</span>
+                      )}
+                      <span className="text-gray-500 text-sm">
+                        • {targetPostContext.author.followers_count.toLocaleString()} 팔로워
+                      </span>
+                    </div>
+                    <p className="text-gray-300 mb-3">
+                      {targetPostContext.content.text.length > 200
+                        ? targetPostContext.content.text.slice(0, 200) + "..."
+                        : targetPostContext.content.text}
+                    </p>
+                    <div className="flex gap-4 text-sm text-gray-500">
+                      <span>❤️ {targetPostContext.metrics.likes.toLocaleString()}</span>
+                      <span>🔁 {targetPostContext.metrics.reposts.toLocaleString()}</span>
+                      <span>💬 {targetPostContext.metrics.replies.toLocaleString()}</span>
+                      <span>👁 {targetPostContext.metrics.views.toLocaleString()}</span>
+                    </div>
+                    {/* Opportunity Score */}
+                    <div className="mt-3 pt-3 border-t border-gray-700">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400 text-sm">기회 점수:</span>
+                        <span className={`font-bold ${
+                          targetPostContext.opportunity_score.overall >= 70 ? "text-green-400" :
+                          targetPostContext.opportunity_score.overall >= 40 ? "text-yellow-400" :
+                          "text-red-400"
+                        }`}>
+                          {targetPostContext.opportunity_score.overall}/100
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          targetPostContext.analysis.freshness === "very_fresh" ? "bg-green-900/50 text-green-400" :
+                          targetPostContext.analysis.freshness === "fresh" ? "bg-blue-900/50 text-blue-400" :
+                          "bg-gray-700 text-gray-400"
+                        }`}>
+                          {targetPostContext.analysis.freshness === "very_fresh" ? "🔥 매우 신선" :
+                           targetPostContext.analysis.freshness === "fresh" ? "✨ 신선" :
+                           targetPostContext.analysis.freshness === "moderate" ? "보통" : "오래됨"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error or Language Selector */}
+            {targetFetchError && !fetchingTarget && (
+              <div className="p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                <p className="text-yellow-400 text-sm mb-2">⚠️ {targetFetchError}</p>
+              </div>
+            )}
+
+            {/* Target Language Selector - Always show for manual override */}
             <div className="flex gap-2 items-center">
-              <span className="text-gray-400 text-sm">대상 포스트 언어:</span>
+              <span className="text-gray-400 text-sm">
+                {targetPostContext ? "감지된 언어:" : "대상 포스트 언어:"}
+              </span>
               {(["en", "ko", "ja", "zh"] as const).map((lang) => (
                 <button
                   key={lang}
