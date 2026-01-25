@@ -1,7 +1,7 @@
 """Supabase client for caching and analytics."""
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -64,9 +64,7 @@ class SupabaseCache:
                     "profile_data": profile_data,
                     "updated_at": datetime.now(timezone.utc).isoformat(),
                     "expires_at": (
-                        datetime.now(timezone.utc).replace(
-                            hour=datetime.now(timezone.utc).hour + ttl_hours
-                        )
+                        datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
                     ).isoformat(),
                 },
                 on_conflict="x_username",
