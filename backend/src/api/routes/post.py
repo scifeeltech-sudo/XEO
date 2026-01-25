@@ -130,6 +130,7 @@ class ApplyTipsRequest(BaseModel):
     username: str
     original_content: str
     selected_tips: list[str]  # List of tip_ids
+    language: str = "ko"  # Target language for suggestions
 
 
 class AppliedTipResponse(BaseModel):
@@ -153,6 +154,7 @@ async def apply_tips(request: ApplyTipsRequest):
             username=request.username,
             original_content=request.original_content,
             selected_tips=request.selected_tips,
+            language=request.language,
         )
         return result
     except Exception as e:

@@ -2,12 +2,23 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { PostAnalysis, ApplyTipsResponse } from "@/types/api";
+import { PostAnalysis, ApplyTipsResponse, PolishType } from "@/types/api";
 import { RadarChart } from "@/components/charts/RadarChart";
-import { PolishButtons } from "@/components/editor/PolishButtons";
 
 interface PostEditorProps {
   username: string;
+}
+
+// Simple language detection based on character ranges
+function detectLanguage(text: string): string {
+  // Korean
+  if (/[\uac00-\ud7af]/.test(text)) return "ko";
+  // Japanese
+  if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return "ja";
+  // Chinese
+  if (/[\u4e00-\u9fff]/.test(text)) return "zh";
+  // Default to English
+  return "en";
 }
 
 export function PostEditor({ username }: PostEditorProps) {
@@ -26,6 +37,8 @@ export function PostEditor({ username }: PostEditorProps) {
   const [selectedTips, setSelectedTips] = useState<string[]>([]);
   const [suggestion, setSuggestion] = useState<ApplyTipsResponse | null>(null);
   const [applyingTips, setApplyingTips] = useState(false);
+  const [polishing, setPolishing] = useState<PolishType | null>(null);
+  const [detectedLanguage, setDetectedLanguage] = useState<string>("ko");
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -49,6 +62,11 @@ export function PostEditor({ username }: PostEditorProps) {
         // Reset tip selection when analysis changes
         setSelectedTips([]);
         setSuggestion(null);
+        // Detect language from context if available
+        if (result.context?.target_post_content) {
+          const lang = detectLanguage(result.context.target_post_content);
+          setDetectedLanguage(lang);
+        }
       } catch (error) {
         console.error("Analysis failed:", error);
       } finally {
@@ -109,6 +127,7 @@ export function PostEditor({ username }: PostEditorProps) {
         username,
         original_content: content,
         selected_tips: selectedTips,
+        language: detectedLanguage,
       });
       setSuggestion(result);
     } catch (error) {
@@ -128,6 +147,27 @@ export function PostEditor({ username }: PostEditorProps) {
       setContent(suggestion.suggested_content);
       setSuggestion(null);
       setSelectedTips([]);
+    }
+  };
+
+  const handlePolishSuggestion = async (type: PolishType) => {
+    if (!suggestion || polishing) return;
+
+    setPolishing(type);
+    try {
+      const result = await api.polishPost({
+        content: suggestion.suggested_content,
+        polish_type: type,
+        language: detectedLanguage,
+      });
+      setSuggestion({
+        ...suggestion,
+        suggested_content: result.polished_content,
+      });
+    } catch (error) {
+      console.error("Failed to polish:", error);
+    } finally {
+      setPolishing(null);
     }
   };
 
@@ -174,16 +214,6 @@ export function PostEditor({ username }: PostEditorProps) {
           <div className="absolute bottom-3 right-3 text-gray-500 text-sm">
             {content.length}/280
           </div>
-        </div>
-
-        {/* Polish Buttons */}
-        <div className="space-y-2">
-          <span className="text-gray-400 text-sm">글 다듬기 (Claude AI):</span>
-          <PolishButtons
-            content={content}
-            onPolished={(polished) => setContent(polished)}
-            disabled={loading}
-          />
         </div>
 
         {/* Analyze Button */}
@@ -235,7 +265,53 @@ export function PostEditor({ username }: PostEditorProps) {
               <p className="text-white whitespace-pre-wrap">
                 {suggestion.suggested_content}
               </p>
+              <div className="text-xs text-gray-500 mt-2">
+                {suggestion.suggested_content.length}/280
+              </div>
             </div>
+
+            {/* Polish Buttons inside suggestion */}
+            <div className="mb-4">
+              <span className="text-gray-400 text-sm block mb-2">
+                글 다듬기 (Claude AI):
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handlePolishSuggestion("grammar")}
+                  disabled={polishing !== null}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    polishing === "grammar"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  } disabled:opacity-50`}
+                >
+                  ✍️ 어조 유지 {polishing === "grammar" && "⏳"}
+                </button>
+                <button
+                  onClick={() => handlePolishSuggestion("twitter")}
+                  disabled={polishing !== null}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    polishing === "twitter"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  } disabled:opacity-50`}
+                >
+                  🐦 트위터 스타일 {polishing === "twitter" && "⏳"}
+                </button>
+                <button
+                  onClick={() => handlePolishSuggestion("280char")}
+                  disabled={polishing !== null}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    polishing === "280char"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  } disabled:opacity-50`}
+                >
+                  📏 280자 조정 {polishing === "280char" && "⏳"}
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-2 mb-4">
               {suggestion.applied_tips.map((tip) => (
                 <span

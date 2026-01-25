@@ -60,6 +60,7 @@ export interface ApplyTipsRequest {
   username: string;
   original_content: string;
   selected_tips: string[];
+  language?: string;
 }
 
 export interface AppliedTip {

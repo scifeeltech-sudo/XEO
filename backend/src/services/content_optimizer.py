@@ -11,27 +11,27 @@ from src.config import get_settings
 from src.services.sela_api_client import SelaAPIClient
 
 
-# Tip application templates
+# Tip application templates (transform functions accept content and optional language)
 TIP_TEMPLATES = {
     "add_emoji": {
         "description": "이모지 추가",
         "impact": "+8% 참여도",
-        "transform": lambda content: _add_emoji(content),
+        "transform": lambda content, lang="ko": _add_emoji(content),
     },
     "add_question": {
         "description": "질문 형태로 변환",
         "impact": "+15% 참여도",
-        "transform": lambda content: _add_question(content),
+        "transform": lambda content, lang="ko": _add_question(content, lang),
     },
     "add_hashtag": {
         "description": "해시태그 추가",
         "impact": "+5% 도달률",
-        "transform": lambda content: _add_hashtag(content),
+        "transform": lambda content, lang="ko": _add_hashtag(content),
     },
     "add_cta": {
         "description": "CTA 추가",
         "impact": "+10% 참여도",
-        "transform": lambda content: _add_cta(content),
+        "transform": lambda content, lang="ko": _add_cta(content, lang),
     },
 }
 
@@ -51,21 +51,57 @@ HASHTAGS = {
     "default": ["#일상", "#오늘"],
 }
 
-# Question suffixes
-QUESTION_SUFFIXES = [
-    " 여러분은 어떻게 생각하세요?",
-    " 여러분의 의견은요?",
-    " 어떻게 생각하시나요?",
-    " 공감하시나요?",
-]
+# Question suffixes by language
+QUESTION_SUFFIXES = {
+    "ko": [
+        " 여러분은 어떻게 생각하세요?",
+        " 여러분의 의견은요?",
+        " 어떻게 생각하시나요?",
+        " 공감하시나요?",
+    ],
+    "en": [
+        " What do you think?",
+        " Any thoughts?",
+        " Do you agree?",
+        " What's your take?",
+    ],
+    "ja": [
+        " 皆さんはどう思いますか？",
+        " ご意見は？",
+        " 共感できますか？",
+    ],
+    "zh": [
+        " 大家怎么看？",
+        " 你们觉得呢？",
+        " 同意吗？",
+    ],
+}
 
-# CTA phrases
-CTA_PHRASES = [
-    " 의견 남겨주세요! 💬",
-    " 공감하시면 좋아요 부탁드려요 ❤️",
-    " 생각 공유해주세요!",
-    " 댓글로 알려주세요 👇",
-]
+# CTA phrases by language
+CTA_PHRASES = {
+    "ko": [
+        " 의견 남겨주세요! 💬",
+        " 공감하시면 좋아요 부탁드려요 ❤️",
+        " 생각 공유해주세요!",
+        " 댓글로 알려주세요 👇",
+    ],
+    "en": [
+        " Share your thoughts! 💬",
+        " Like if you agree! ❤️",
+        " Let me know in the comments 👇",
+        " Drop your opinion below!",
+    ],
+    "ja": [
+        " コメントお待ちしています! 💬",
+        " 共感したらいいねお願いします ❤️",
+        " 意見を聞かせてください 👇",
+    ],
+    "zh": [
+        " 欢迎留言! 💬",
+        " 同意的话请点赞 ❤️",
+        " 评论区见 👇",
+    ],
+}
 
 
 def _add_emoji(content: str) -> str:
@@ -91,17 +127,18 @@ def _add_emoji(content: str) -> str:
     return f"{content} {emoji}"
 
 
-def _add_question(content: str) -> str:
+def _add_question(content: str, language: str = "ko") -> str:
     """Transform content into question form."""
     # Check if already has question
-    if "?" in content:
+    if "?" in content or "？" in content:
         return content
 
     # Remove trailing punctuation
-    content = content.rstrip(".")
+    content = content.rstrip(".。")
 
-    # Add question suffix
-    suffix = random.choice(QUESTION_SUFFIXES)
+    # Add question suffix based on language
+    suffixes = QUESTION_SUFFIXES.get(language, QUESTION_SUFFIXES["en"])
+    suffix = random.choice(suffixes)
     return content + suffix
 
 
@@ -122,13 +159,15 @@ def _add_hashtag(content: str) -> str:
     return f"{content} {' '.join(tags)}"
 
 
-def _add_cta(content: str) -> str:
+def _add_cta(content: str, language: str = "ko") -> str:
     """Add call-to-action to content."""
-    # Check if already has CTA-like phrases
-    if any(cta_word in content for cta_word in ["남겨", "부탁", "공유", "댓글"]):
+    # Check if already has CTA-like phrases (multi-language)
+    cta_indicators = ["남겨", "부탁", "공유", "댓글", "share", "comment", "let me know", "コメント", "留言"]
+    if any(cta_word.lower() in content.lower() for cta_word in cta_indicators):
         return content
 
-    cta = random.choice(CTA_PHRASES)
+    phrases = CTA_PHRASES.get(language, CTA_PHRASES["en"])
+    cta = random.choice(phrases)
     return content + cta
 
 
@@ -149,8 +188,16 @@ class ContentOptimizer:
         username: str,
         original_content: str,
         selected_tips: list[str],
+        language: str = "ko",
     ) -> dict:
-        """Apply selected tips to generate optimized content."""
+        """Apply selected tips to generate optimized content.
+
+        Args:
+            username: User's username
+            original_content: Original post content
+            selected_tips: List of tip IDs to apply
+            language: Target language for suggestions (ko, en, ja, zh)
+        """
 
         # Limit to 3 tips
         selected_tips = selected_tips[:3]
@@ -162,7 +209,7 @@ class ContentOptimizer:
         for tip_id in selected_tips:
             if tip_id in TIP_TEMPLATES:
                 template = TIP_TEMPLATES[tip_id]
-                suggested_content = template["transform"](suggested_content)
+                suggested_content = template["transform"](suggested_content, language)
                 applied_tips.append({
                     "tip_id": tip_id,
                     "description": template["description"],
