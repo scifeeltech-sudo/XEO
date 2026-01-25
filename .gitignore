@@ -40,3 +40,4 @@ htmlcov/
 
 # Build
 # Note: uv.lock should be committed for reproducible builds
+x-algorithm/
