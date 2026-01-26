@@ -231,15 +231,6 @@ export function PostEditor({ username }: PostEditorProps) {
     alert("Copied to clipboard!");
   };
 
-  const handleUseSuggestion = () => {
-    if (suggestion) {
-      // Copy to clipboard and reset for new cycle
-      navigator.clipboard.writeText(suggestion.suggested_content);
-      alert("Copied to clipboard! Starting fresh for your next post.");
-      handleReset();
-    }
-  };
-
   const handlePolishSuggestion = async (type: PolishType) => {
     if (!suggestion || polishing) return;
 
@@ -401,15 +392,6 @@ export function PostEditor({ username }: PostEditorProps) {
           )}
         </button>
 
-        {/* Copy Button */}
-        <button
-          onClick={() => handleCopy(content)}
-          disabled={!content}
-          className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
-        >
-          Copy to Clipboard
-        </button>
-
         {/* Suggestion Panels Container */}
         <div className="grid grid-cols-1 gap-4">
           {/* Post Suggestion */}
@@ -487,20 +469,13 @@ export function PostEditor({ username }: PostEditorProps) {
                     .join(", ")}
                 </div>
               )}
-              <div className="flex gap-2">
-                <button
-                  onClick={handleUseSuggestion}
-                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-                >
-                  Use This Content
-                </button>
-                <button
-                  onClick={() => handleCopy(suggestion.suggested_content)}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
-                >
-                  📋 Copy
-                </button>
-              </div>
+              <button
+                onClick={() => handleCopy(suggestion.suggested_content)}
+                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <span>📋</span>
+                <span>Copy to Clipboard</span>
+              </button>
             </div>
           )}
 
@@ -560,25 +535,14 @@ export function PostEditor({ username }: PostEditorProps) {
                     )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(personalizedPost.generated_content);
-                        alert("Copied to clipboard! Starting fresh for your next post.");
-                        handleReset();
-                      }}
-                      className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
-                    >
-                      Use This Content
-                    </button>
-                    <button
-                      onClick={() => handleCopy(personalizedPost.generated_content)}
-                      className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
-                    >
-                      📋 Copy
-                    </button>
-                  </div>
+                  {/* Action Button */}
+                  <button
+                    onClick={() => handleCopy(personalizedPost.generated_content)}
+                    className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span>📋</span>
+                    <span>Copy to Clipboard</span>
+                  </button>
                 </>
               )}
             </div>
