@@ -95,9 +95,6 @@ class APIClient {
   async generatePersonalizedPost(
     request: PersonalizedPostRequest
   ): Promise<PersonalizedPostResponse> {
-    console.log("[API] generatePersonalizedPost request:", request);
-    console.log("[API] baseUrl:", this.baseUrl);
-
     const response = await fetch(
       `${this.baseUrl}/api/v1/post/generate-personalized`,
       {
@@ -109,14 +106,8 @@ class APIClient {
       }
     );
 
-    console.log("[API] generatePersonalizedPost response status:", response.status);
-
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error("[API] generatePersonalizedPost error body:", errorBody);
-      throw new Error(
-        `Failed to generate personalized post: ${response.status} - ${errorBody}`
-      );
+      throw new Error(`Failed to generate personalized post: ${response.status}`);
     }
 
     return response.json();
