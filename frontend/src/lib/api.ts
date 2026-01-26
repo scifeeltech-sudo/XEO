@@ -94,7 +94,7 @@ class APIClient {
 
   async generatePersonalizedPost(
     request: PersonalizedPostRequest
-  ): Promise<PersonalizedPostResponse> {
+  ): Promise<PersonalizedPostResponse | null> {
     const response = await fetch(
       `${this.baseUrl}/api/v1/post/generate-personalized`,
       {

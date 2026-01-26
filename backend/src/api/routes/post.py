@@ -341,7 +341,7 @@ class PersonalizedPostResponse(BaseModel):
     target_author: str
 
 
-@router.post("/generate-personalized", response_model=PersonalizedPostResponse)
+@router.post("/generate-personalized", response_model=Optional[PersonalizedPostResponse])
 async def generate_personalized_post(request: PersonalizedPostRequest):
     """Generate a personalized post based on user's profile and writing style.
 
@@ -351,6 +351,7 @@ async def generate_personalized_post(request: PersonalizedPostRequest):
     - Emoji and hashtag usage patterns
 
     Then generates a contextually appropriate reply/quote that matches their style.
+    Returns null if profile not found or insufficient data.
     """
     try:
         result = await optimizer.generate_personalized_post(
@@ -361,14 +362,7 @@ async def generate_personalized_post(request: PersonalizedPostRequest):
             language=request.language,
         )
 
-        if not result:
-            raise HTTPException(
-                status_code=404,
-                detail="Could not generate personalized post. User profile not found or insufficient data."
-            )
-
+        # Return null instead of 404 if profile not found
         return result
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
