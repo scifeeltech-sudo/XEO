@@ -52,6 +52,22 @@ export function PostEditor({ username }: PostEditorProps) {
 
   const targetUrlDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Reset all state to start fresh
+  const handleReset = useCallback(() => {
+    setContent("");
+    setPostType("original");
+    setTargetUrl("");
+    setMediaType(undefined);
+    setAnalysis(null);
+    setSelectedTips([]);
+    setSuggestion(null);
+    setDetectedLanguage("en");
+    setTargetLanguage("en");
+    setTargetPostContext(null);
+    setTargetFetchError(null);
+    setPersonalizedPost(null);
+  }, []);
+
   const analyzePost = useCallback(
     async (text: string) => {
       if (!text.trim()) {
@@ -222,9 +238,10 @@ export function PostEditor({ username }: PostEditorProps) {
 
   const handleUseSuggestion = () => {
     if (suggestion) {
-      setContent(suggestion.suggested_content);
-      setSuggestion(null);
-      setSelectedTips([]);
+      // Copy to clipboard and reset for new cycle
+      navigator.clipboard.writeText(suggestion.suggested_content);
+      alert("Copied to clipboard! Starting fresh for your next post.");
+      handleReset();
     }
   };
 
@@ -572,8 +589,9 @@ export function PostEditor({ username }: PostEditorProps) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
-                        setContent(personalizedPost.generated_content);
-                        setPersonalizedPost(null);
+                        navigator.clipboard.writeText(personalizedPost.generated_content);
+                        alert("Copied to clipboard! Starting fresh for your next post.");
+                        handleReset();
                       }}
                       className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
                     >
@@ -732,6 +750,15 @@ export function PostEditor({ username }: PostEditorProps) {
             )}
           </div>
         )}
+
+        {/* Reset Button */}
+        <button
+          onClick={handleReset}
+          className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <span>🔄</span>
+          <span>Reset</span>
+        </button>
       </div>
     </div>
   );
