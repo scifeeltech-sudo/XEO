@@ -77,7 +77,7 @@ export interface ApplyTipsResponse {
   predicted_improvement: Record<string, string>;
 }
 
-export type PolishType = "grammar" | "twitter" | "280char";
+export type PolishType = "grammar" | "twitter" | "280char" | "translate_en" | "translate_ko" | "translate_zh";
 
 export interface PolishRequest {
   content: string;

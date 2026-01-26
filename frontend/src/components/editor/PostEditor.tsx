@@ -449,6 +449,44 @@ export function PostEditor({ username }: PostEditorProps) {
                     📏 Fit 280 chars {polishing === "280char" && "⏳"}
                   </button>
                 </div>
+                <span className="text-gray-400 text-sm block mb-2 mt-3">
+                  Translate:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handlePolishSuggestion("translate_en")}
+                    disabled={polishing !== null}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      polishing === "translate_en"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    } disabled:opacity-50`}
+                  >
+                    🇺🇸 English {polishing === "translate_en" && "⏳"}
+                  </button>
+                  <button
+                    onClick={() => handlePolishSuggestion("translate_ko")}
+                    disabled={polishing !== null}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      polishing === "translate_ko"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    } disabled:opacity-50`}
+                  >
+                    🇰🇷 한국어 {polishing === "translate_ko" && "⏳"}
+                  </button>
+                  <button
+                    onClick={() => handlePolishSuggestion("translate_zh")}
+                    disabled={polishing !== null}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      polishing === "translate_zh"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    } disabled:opacity-50`}
+                  >
+                    🇨🇳 中文 {polishing === "translate_zh" && "⏳"}
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2 mb-4">

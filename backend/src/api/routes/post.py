@@ -269,7 +269,7 @@ async def optimize_post(request: OptimizeRequest):
 
 class PolishRequest(BaseModel):
     content: str
-    polish_type: Literal["grammar", "twitter", "280char"]
+    polish_type: Literal["grammar", "twitter", "280char", "translate_en", "translate_ko", "translate_zh"]
     language: Optional[str] = None
     target_post_content: Optional[str] = None  # For tone matching in grammar mode
 

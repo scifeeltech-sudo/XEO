@@ -525,7 +525,7 @@ Return ONLY the optimized content:"""
     async def polish(
         self,
         content: str,
-        polish_type: Literal["grammar", "twitter", "280char"],
+        polish_type: Literal["grammar", "twitter", "280char", "translate_en", "translate_ko", "translate_zh"],
         language: Optional[str] = None,
         target_post_content: Optional[str] = None,
     ) -> dict:
@@ -537,6 +537,9 @@ Return ONLY the optimized content:"""
                 - grammar: Match target post tone while fixing grammar
                 - twitter: Convert to casual, impactful Twitter style
                 - 280char: Compress to 280 characters while keeping message
+                - translate_en: Translate to English
+                - translate_ko: Translate to Korean
+                - translate_zh: Translate to Chinese
             language: Target language code (ko, en, ja, zh)
             target_post_content: Content of target post (for tone matching)
         """
@@ -610,6 +613,48 @@ Text: {content}
 Current length: {len(content)} characters
 
 IMPORTANT: Output must be in {target_lang_name}. Return ONLY the compressed text, nothing else."""
+
+        elif polish_type == "translate_en":
+            system_prompt = """You are a professional translator specializing in social media content.
+Your job is to translate text to natural, fluent English while:
+1. Preserving the original tone and style
+2. Keeping it suitable for Twitter/X
+3. Maintaining any emojis or formatting
+4. Making it sound natural to native English speakers"""
+
+            user_prompt = f"""Translate this social media post to English. Keep the same tone and style.
+
+Text: {content}
+
+Return ONLY the English translation, nothing else."""
+
+        elif polish_type == "translate_ko":
+            system_prompt = """You are a professional translator specializing in social media content.
+Your job is to translate text to natural, fluent Korean while:
+1. Preserving the original tone and style
+2. Keeping it suitable for Twitter/X
+3. Maintaining any emojis or formatting
+4. Making it sound natural to native Korean speakers"""
+
+            user_prompt = f"""Translate this social media post to Korean (한국어). Keep the same tone and style.
+
+Text: {content}
+
+Return ONLY the Korean translation, nothing else."""
+
+        elif polish_type == "translate_zh":
+            system_prompt = """You are a professional translator specializing in social media content.
+Your job is to translate text to natural, fluent Simplified Chinese while:
+1. Preserving the original tone and style
+2. Keeping it suitable for Twitter/X (微博 style)
+3. Maintaining any emojis or formatting
+4. Making it sound natural to native Chinese speakers"""
+
+            user_prompt = f"""Translate this social media post to Simplified Chinese (简体中文). Keep the same tone and style.
+
+Text: {content}
+
+Return ONLY the Chinese translation, nothing else."""
 
         try:
             message = self.anthropic_client.messages.create(
