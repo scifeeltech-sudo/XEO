@@ -348,32 +348,12 @@ export function PostEditor({ username }: PostEditorProps) {
               </div>
             )}
 
-            {/* Error or Language Selector */}
+            {/* Error message */}
             {targetFetchError && !fetchingTarget && (
               <div className="p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-                <p className="text-yellow-400 text-sm mb-2">⚠️ {targetFetchError}</p>
+                <p className="text-yellow-400 text-sm">⚠️ {targetFetchError}</p>
               </div>
             )}
-
-            {/* Target Language Selector - Always show for manual override */}
-            <div className="flex gap-2 items-center">
-              <span className="text-gray-400 text-sm">
-                {targetPostContext ? "Detected language:" : "Target post language:"}
-              </span>
-              {(["en", "ko", "ja", "zh"] as const).map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => setTargetLanguage(lang)}
-                  className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                    targetLanguage === lang
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  }`}
-                >
-                  {lang === "en" ? "English" : lang === "ko" ? "한국어" : lang === "ja" ? "日本語" : "中文"}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
