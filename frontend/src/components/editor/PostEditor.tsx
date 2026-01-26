@@ -36,6 +36,7 @@ export function PostEditor({ username }: PostEditorProps) {
   const [applyingTips, setApplyingTips] = useState(false);
   const [polishing, setPolishing] = useState<PolishType | null>(null);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
+  const [suggestionLanguage, setSuggestionLanguage] = useState<string>("en"); // Track current suggestion language
   const [targetLanguage, setTargetLanguage] = useState<"ko" | "en" | "ja" | "zh">("en");
 
   // Target post preview state
@@ -58,6 +59,7 @@ export function PostEditor({ username }: PostEditorProps) {
     setSelectedTips([]);
     setSuggestion(null);
     setDetectedLanguage("en");
+    setSuggestionLanguage("en");
     setTargetLanguage("en");
     setTargetPostContext(null);
     setTargetFetchError(null);
@@ -219,6 +221,7 @@ export function PostEditor({ username }: PostEditorProps) {
         language: detectedLanguage,
       });
       setSuggestion(result);
+      setSuggestionLanguage(detectedLanguage); // Set initial suggestion language
     } catch (error) {
       console.error("Failed to apply tips:", error);
     } finally {
@@ -236,16 +239,27 @@ export function PostEditor({ username }: PostEditorProps) {
 
     setPolishing(type);
     try {
+      // For translation, the language parameter doesn't matter (target is in the type)
+      // For other polish types, use the current suggestion language
       const result = await api.polishPost({
         content: suggestion.suggested_content,
         polish_type: type,
-        language: detectedLanguage,
+        language: suggestionLanguage,
         target_post_content: analysis?.context?.target_post_content,
       });
       setSuggestion({
         ...suggestion,
         suggested_content: result.polished_content,
       });
+
+      // Update suggestion language if translation was done
+      if (type === "translate_en") {
+        setSuggestionLanguage("en");
+      } else if (type === "translate_ko") {
+        setSuggestionLanguage("ko");
+      } else if (type === "translate_zh") {
+        setSuggestionLanguage("zh");
+      }
     } catch (error) {
       console.error("Failed to polish:", error);
     } finally {
@@ -586,6 +600,15 @@ export function PostEditor({ username }: PostEditorProps) {
             </div>
           )}
         </div>
+
+        {/* Reset Button */}
+        <button
+          onClick={handleReset}
+          className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          <span>🔄</span>
+          <span>Reset</span>
+        </button>
       </div>
 
       {/* Analysis Results */}
@@ -727,15 +750,6 @@ export function PostEditor({ username }: PostEditorProps) {
             )}
           </div>
         )}
-
-        {/* Reset Button */}
-        <button
-          onClick={handleReset}
-          className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <span>🔄</span>
-          <span>Reset</span>
-        </button>
       </div>
     </div>
   );
