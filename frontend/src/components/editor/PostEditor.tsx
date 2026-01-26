@@ -288,8 +288,8 @@ export function PostEditor({ username }: PostEditorProps) {
                 <div className="flex items-center gap-3 text-gray-400">
                   <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                   <div>
-                    <span className="text-white">대상 포스트 가져오는 중...</span>
-                    <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
+                    <span className="text-white">Fetching target post...</span>
+                    <p className="text-sm text-gray-500">Please wait</p>
                   </div>
                 </div>
               </div>
@@ -399,7 +399,7 @@ export function PostEditor({ username }: PostEditorProps) {
           {loading ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>분석 중... 잠시만 기다려주세요</span>
+              <span>Analyzing... Please wait</span>
             </>
           ) : (
             <>
@@ -545,8 +545,8 @@ export function PostEditor({ username }: PostEditorProps) {
               {fetchingPersonalized ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-                  <p className="text-gray-400">AI가 맞춤형 포스트를 생성 중...</p>
-                  <p className="text-gray-500 text-sm mt-1">잠시만 기다려주세요</p>
+                  <p className="text-gray-400">AI is generating personalized post...</p>
+                  <p className="text-gray-500 text-sm mt-1">Please wait</p>
                 </div>
               ) : personalizedPost && (
                 <>
@@ -618,8 +618,8 @@ export function PostEditor({ username }: PostEditorProps) {
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-400">포스트 분석 중...</p>
-            <p className="text-gray-500 text-sm mt-1">잠시만 기다려주세요</p>
+            <p className="text-gray-400">Analyzing post...</p>
+            <p className="text-gray-500 text-sm mt-1">Please wait</p>
           </div>
         )}
 

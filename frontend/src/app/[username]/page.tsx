@@ -34,8 +34,8 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col items-center justify-center py-20">
             <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-400 text-lg">@{username} 프로필 분석 중...</p>
-            <p className="text-gray-500 text-sm mt-2">잠시만 기다려주세요</p>
+            <p className="text-gray-400 text-lg">Analyzing @{username}&apos;s profile...</p>
+            <p className="text-gray-500 text-sm mt-2">Please wait</p>
           </div>
         </div>
       </main>
