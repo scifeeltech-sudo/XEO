@@ -55,13 +55,31 @@ class TweetData(BaseModel):
             except (ValueError, AttributeError):
                 pass
 
+        # Handle image field - can be string, list, or None
+        images_raw = data.get("image", [])
+        if isinstance(images_raw, str):
+            images = [images_raw] if images_raw else []
+        elif isinstance(images_raw, list):
+            images = images_raw
+        else:
+            images = []
+
+        # Handle video field - can be string, list, or None
+        videos_raw = data.get("video", [])
+        if isinstance(videos_raw, str):
+            videos = [videos_raw] if videos_raw else []
+        elif isinstance(videos_raw, list):
+            videos = videos_raw
+        else:
+            videos = []
+
         return cls(
             tweet_id=str(data.get("tweetId", "")),
             username=data.get("username", ""),
             content=data.get("content", ""),
             quote_content=data.get("quoteContent"),
-            images=data.get("image", []) or [],
-            videos=data.get("video", []) or [],
+            images=images,
+            videos=videos,
             posted_at=posted_at,
             tweet_url=data.get("tweetUrl", ""),
             is_retweet=bool(data.get("isRetweet", False)),
