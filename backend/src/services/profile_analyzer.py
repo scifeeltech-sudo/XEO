@@ -133,13 +133,13 @@ class ProfileAnalyzer:
         if features.avg_engagement_rate < 0.02:
             insights.append(Insight(
                 category="engagement",
-                message="참여율이 평균보다 낮습니다. 더 상호작용을 유도하는 콘텐츠를 시도해보세요.",
+                message="Your engagement rate is below average. Try creating more interactive content.",
                 priority="high",
             ))
         elif features.avg_engagement_rate > 0.05:
             insights.append(Insight(
                 category="engagement",
-                message="참여율이 매우 높습니다! 현재 전략을 유지하세요.",
+                message="Your engagement rate is excellent! Keep up your current strategy.",
                 priority="low",
             ))
 
@@ -147,14 +147,14 @@ class ProfileAnalyzer:
         if features.retweet_ratio > 0.5:
             insights.append(Insight(
                 category="content",
-                message="리트윗 비율이 높습니다. 오리지널 콘텐츠를 더 늘려보세요.",
+                message="High retweet ratio detected. Consider creating more original content.",
                 priority="medium",
             ))
 
         if features.media_ratio < 0.3:
             insights.append(Insight(
                 category="media",
-                message="미디어 사용이 적습니다. 이미지/비디오는 참여율을 높입니다.",
+                message="Low media usage. Images and videos boost engagement significantly.",
                 priority="medium",
             ))
 
@@ -162,7 +162,7 @@ class ProfileAnalyzer:
         if features.engagement_consistency < 0.5:
             insights.append(Insight(
                 category="consistency",
-                message="참여율 변동이 큽니다. 일관된 품질의 콘텐츠를 유지해보세요.",
+                message="High engagement volatility. Try to maintain consistent content quality.",
                 priority="medium",
             ))
 
@@ -184,31 +184,31 @@ class ProfileAnalyzer:
             recommendations.append(Recommendation(
                 action="increase_posting_frequency",
                 expected_impact="+20% reach",
-                description="포스팅 빈도를 늘려 더 많은 노출 기회를 만드세요.",
+                description="Post more frequently to create more exposure opportunities.",
             ))
         elif weakest == "engagement":
             recommendations.append(Recommendation(
                 action="add_questions",
                 expected_impact="+15% engagement",
-                description="포스트에 질문을 추가하여 답글을 유도하세요.",
+                description="Add questions to your posts to encourage replies.",
             ))
         elif weakest == "virality":
             recommendations.append(Recommendation(
                 action="create_shareable_content",
                 expected_impact="+25% virality",
-                description="공유하고 싶은 유용한 정보나 인사이트를 제공하세요.",
+                description="Share valuable insights and information worth sharing.",
             ))
         elif weakest == "quality":
             recommendations.append(Recommendation(
                 action="focus_on_original_content",
                 expected_impact="+20% quality",
-                description="리트윗보다 오리지널 콘텐츠에 집중하세요.",
+                description="Focus on original content rather than retweets.",
             ))
         elif weakest == "longevity":
             recommendations.append(Recommendation(
                 action="add_media",
                 expected_impact="+30% longevity",
-                description="이미지나 비디오를 추가하여 체류 시간을 늘리세요.",
+                description="Add images or videos to increase dwell time.",
             ))
 
         # Media recommendation if low
@@ -216,7 +216,7 @@ class ProfileAnalyzer:
             recommendations.append(Recommendation(
                 action="increase_media_usage",
                 expected_impact="+15% overall",
-                description="포스트의 40% 이상에 미디어를 포함시키세요.",
+                description="Include media in at least 40% of your posts.",
             ))
 
         return recommendations

@@ -240,7 +240,7 @@ class ScorePredictor:
             context_boost["p_click"] = 0.25
             context_boost["p_profile_click"] = 0.20
             adjustments["large_account_bonus"] = "+25%"
-            recommendations.append("대형 계정 포스트로 높은 노출이 예상됩니다")
+            recommendations.append("Large account post - high exposure expected")
 
         # Freshness bonus (if posted within last hour)
         if target_post.posted_at:
@@ -250,14 +250,14 @@ class ScorePredictor:
             if age_minutes < 60:
                 context_boost["p_click"] = context_boost.get("p_click", 0) + 0.15
                 adjustments["freshness_bonus"] = "+15%"
-                recommendations.append(f"포스트가 {int(age_minutes)}분 전에 작성되어 신선도 보너스가 적용됩니다")
+                recommendations.append(f"Post was created {int(age_minutes)} minutes ago - freshness bonus applied")
 
         # Reply competition penalty
         if target_post.replies_count > 1000:
             penalty = -0.10
             context_boost["p_click"] = context_boost.get("p_click", 0) + penalty
             adjustments["reply_competition"] = "-10%"
-            recommendations.append(f"현재 답글 {target_post.replies_count:,}개로 경쟁이 있으니 차별화된 관점을 제시하세요")
+            recommendations.append(f"Currently {target_post.replies_count:,} replies - stand out with a unique perspective")
 
         context = ContextInfo(
             target_post=target_post,
@@ -337,7 +337,7 @@ class ScorePredictor:
         self,
         features: PostFeatures,
         scores: PentagonScores,
-        language: str = "ko",
+        language: str = "en",
     ) -> list[QuickTip]:
         """Generate fallback tips when AI is unavailable."""
         tips = []

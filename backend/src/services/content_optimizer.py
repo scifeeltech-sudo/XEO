@@ -15,24 +15,24 @@ from src.services.x_algorithm_advisor import X_ALGORITHM_KNOWLEDGE
 # Tip application templates (transform functions accept content and optional language)
 TIP_TEMPLATES = {
     "add_emoji": {
-        "description": "이모지 추가",
-        "impact": "+8% 참여도",
-        "transform": lambda content, lang="ko": _add_emoji(content),
+        "description": "Add emoji",
+        "impact": "+8% engagement",
+        "transform": lambda content, lang="en": _add_emoji(content),
     },
     "add_question": {
-        "description": "질문 형태로 변환",
-        "impact": "+15% 참여도",
-        "transform": lambda content, lang="ko": _add_question(content, lang),
+        "description": "Convert to question format",
+        "impact": "+15% engagement",
+        "transform": lambda content, lang="en": _add_question(content, lang),
     },
     "add_hashtag": {
-        "description": "해시태그 추가",
-        "impact": "+5% 도달률",
-        "transform": lambda content, lang="ko": _add_hashtag(content),
+        "description": "Add hashtags",
+        "impact": "+5% reach",
+        "transform": lambda content, lang="en": _add_hashtag(content),
     },
     "add_cta": {
-        "description": "CTA 추가",
-        "impact": "+10% 참여도",
-        "transform": lambda content, lang="ko": _add_cta(content, lang),
+        "description": "Add CTA",
+        "impact": "+10% engagement",
+        "transform": lambda content, lang="en": _add_cta(content, lang),
     },
 }
 
@@ -44,12 +44,12 @@ EMOJIS = {
     "general": ["✅", "📌", "💪", "🚀", "⭐"],
 }
 
-# Common Korean hashtags
+# Common hashtags
 HASHTAGS = {
-    "일상": ["#일상", "#데일리", "#daily"],
-    "생각": ["#생각", "#thoughts", "#인사이트"],
-    "tech": ["#테크", "#기술", "#AI", "#개발"],
-    "default": ["#일상", "#오늘"],
+    "daily": ["#daily", "#life", "#today"],
+    "thoughts": ["#thoughts", "#opinion", "#insights"],
+    "tech": ["#tech", "#technology", "#AI", "#coding"],
+    "default": ["#thoughts", "#daily"],
 }
 
 # Question suffixes by language
@@ -150,17 +150,17 @@ def _add_hashtag(content: str) -> str:
         return content
 
     # Select hashtags based on content
-    if any(word in content.lower() for word in ["ai", "개발", "코딩", "tech"]):
+    if any(word in content.lower() for word in ["ai", "code", "coding", "tech", "dev"]):
         tags = random.sample(HASHTAGS["tech"], min(2, len(HASHTAGS["tech"])))
-    elif any(word in content.lower() for word in ["생각", "느낌", "마음"]):
-        tags = random.sample(HASHTAGS["생각"], min(2, len(HASHTAGS["생각"])))
+    elif any(word in content.lower() for word in ["think", "thought", "feel", "opinion"]):
+        tags = random.sample(HASHTAGS["thoughts"], min(2, len(HASHTAGS["thoughts"])))
     else:
         tags = HASHTAGS["default"]
 
     return f"{content} {' '.join(tags)}"
 
 
-def _add_cta(content: str, language: str = "ko") -> str:
+def _add_cta(content: str, language: str = "en") -> str:
     """Add call-to-action to content."""
     # Check if already has CTA-like phrases (multi-language)
     cta_indicators = ["남겨", "부탁", "공유", "댓글", "share", "comment", "let me know", "コメント", "留言"]
@@ -189,7 +189,7 @@ class ContentOptimizer:
         username: str,
         original_content: str,
         selected_tips: list[str],
-        language: str = "ko",
+        language: str = "en",
     ) -> dict:
         """Apply selected tips to generate optimized content using Claude AI.
 
@@ -279,11 +279,11 @@ Return ONLY the optimized content:"""
                         "impact": template["impact"],
                     })
                     # Track improvements
-                    if "참여도" in template["impact"]:
+                    if "engagement" in template["impact"]:
                         match = re.search(r"\+(\d+)%", template["impact"])
                         if match:
                             improvements["engagement"] = improvements.get("engagement", 0) + int(match.group(1))
-                    elif "도달률" in template["impact"]:
+                    elif "reach" in template["impact"]:
                         match = re.search(r"\+(\d+)%", template["impact"])
                         if match:
                             improvements["reach"] = improvements.get("reach", 0) + int(match.group(1))
@@ -291,8 +291,8 @@ Return ONLY the optimized content:"""
                     # Algorithm-generated tip
                     applied_tips.append({
                         "tip_id": tip,
-                        "description": "X 알고리즘 기반 최적화",
-                        "impact": "+10% (AI 추정)",
+                        "description": "X algorithm-based optimization",
+                        "impact": "+10% (AI estimated)",
                     })
                     improvements["engagement"] = improvements.get("engagement", 0) + 10
 
@@ -328,11 +328,11 @@ Return ONLY the optimized content:"""
                     "impact": template["impact"],
                 })
 
-                if "참여도" in template["impact"]:
+                if "engagement" in template["impact"]:
                     match = re.search(r"\+(\d+)%", template["impact"])
                     if match:
                         improvements["engagement"] = improvements.get("engagement", 0) + int(match.group(1))
-                elif "도달률" in template["impact"]:
+                elif "reach" in template["impact"]:
                     match = re.search(r"\+(\d+)%", template["impact"])
                     if match:
                         improvements["reach"] = improvements.get("reach", 0) + int(match.group(1))
@@ -400,13 +400,13 @@ Return ONLY the optimized content:"""
         # Generate tips
         tips = []
         if freshness in ("very_fresh", "fresh"):
-            tips.append(f"🕐 포스트가 {age_minutes}분 전에 작성되어 답글 달기 최적의 타이밍입니다")
+            tips.append(f"🕐 Post was created {age_minutes} minutes ago - perfect timing for a reply")
         if virality_status == "trending":
-            tips.append("🔥 현재 트렌딩 중인 포스트입니다 - 노출 기회가 높습니다")
+            tips.append("🔥 This post is currently trending - high exposure opportunity")
         if reply_saturation in ("high", "very_high"):
-            tips.append(f"💬 이미 {tweet.replies_count:,} 답글이 있어 차별화된 관점이 필요합니다")
+            tips.append(f"💬 Already {tweet.replies_count:,} replies - bring a unique perspective to stand out")
         if tweet.views_count > 1000000:
-            tips.append("🎯 대형 계정의 포스트로 높은 노출이 예상됩니다")
+            tips.append("🎯 Large account post - high exposure expected")
 
         return {
             "post_id": tweet.tweet_id,
