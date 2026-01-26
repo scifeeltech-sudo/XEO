@@ -50,7 +50,6 @@ export function PostEditor({ username }: PostEditorProps) {
   const [personalizedPost, setPersonalizedPost] = useState<PersonalizedPostResponse | null>(null);
   const [fetchingPersonalized, setFetchingPersonalized] = useState(false);
 
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const targetUrlDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const analyzePost = useCallback(
@@ -98,28 +97,6 @@ export function PostEditor({ username }: PostEditorProps) {
     },
     [username, postType, targetUrl, mediaType, targetLanguage]
   );
-
-  // Auto-analyze only for original posts, not for reply/quote
-  useEffect(() => {
-    if (postType !== "original") {
-      // For reply/quote, clear analysis when content changes
-      // User must click "Analyze" button manually
-      return;
-    }
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = setTimeout(() => {
-      analyzePost(content);
-    }, 300);  // Reduced from 500ms for faster feedback
-
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, [content, analyzePost, postType]);
 
   // Clear analysis when switching post type
   useEffect(() => {
@@ -289,7 +266,7 @@ export function PostEditor({ username }: PostEditorProps) {
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
             >
-              {type === "original" ? "Original" : type === "reply" ? "Reply" : "Quote"}
+              {type === "original" ? "My Post" : type === "reply" ? "Reply" : "Quote"}
             </button>
           ))}
         </div>
@@ -744,7 +721,11 @@ export function PostEditor({ username }: PostEditorProps) {
         {!analysis && !loading && (
           <div className="text-center py-12 text-gray-500">
             {postType === "original" ? (
-              "Enter your post content to see real-time score analysis"
+              <>
+                Enter your post content, then
+                <br />
+                click <span className="text-blue-400">[🔍 Analyze]</span> button
+              </>
             ) : (
               <>
                 Enter the target post URL and your content, then
