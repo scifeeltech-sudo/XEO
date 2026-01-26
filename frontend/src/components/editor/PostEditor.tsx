@@ -176,12 +176,15 @@ export function PostEditor({ username }: PostEditorProps) {
 
   // Fetch personalized post when target context is loaded
   useEffect(() => {
+    console.log("[Personalized] useEffect triggered", { targetPostContext: !!targetPostContext, postType, username });
+
     if (!targetPostContext || postType === "original") {
       setPersonalizedPost(null);
       return;
     }
 
     const fetchPersonalized = async () => {
+      console.log("[Personalized] Starting fetch...");
       setFetchingPersonalized(true);
       try {
         const result = await api.generatePersonalizedPost({
@@ -191,9 +194,10 @@ export function PostEditor({ username }: PostEditorProps) {
           post_type: postType as "reply" | "quote",
           language: targetLanguage,
         });
+        console.log("[Personalized] Success:", result);
         setPersonalizedPost(result);
       } catch (error) {
-        console.error("Failed to generate personalized post:", error);
+        console.error("[Personalized] Failed:", error);
         setPersonalizedPost(null);
       } finally {
         setFetchingPersonalized(false);
