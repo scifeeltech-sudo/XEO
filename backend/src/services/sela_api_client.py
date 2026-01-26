@@ -329,10 +329,11 @@ class SelaAPIClient:
 
     async def get_post_context(self, post_url: str) -> TweetData | None:
         """
-        Get context for a specific post by fetching the author's profile.
+        Get context for a specific post.
 
-        This is a workaround since TWITTER_POST scrape type doesn't work.
-        We fetch the author's profile and find the specific tweet.
+        Tries multiple strategies:
+        1. TWITTER_POST scrape (gets post directly if available)
+        2. Profile scrape with high post count (fallback)
 
         Args:
             post_url: Full URL of the Twitter post
@@ -354,13 +355,36 @@ class SelaAPIClient:
         except (ValueError, IndexError):
             return None
 
-        # Fetch profile with enough posts to find the tweet
-        response = await self.get_twitter_profile(username, post_count=50)
+        # Strategy 1: Try TWITTER_POST scrape first
+        post_response = await self.get_twitter_post(post_url)
+        if post_response.success and post_response.data:
+            result = post_response.data.get("data", {}).get("result", {})
+            post_data = result.get("post", {})
 
-        if response.profile:
-            for tweet in response.profile.tweets:
-                if tweet.tweet_id == tweet_id:
-                    return tweet
+            # If post data is available, parse and return it
+            if post_data and post_data.get("content"):
+                return TweetData.from_api_response(post_data)
+
+            # Sometimes the post might be in a different format
+            # Check if we can construct it from the URL info
+            if result.get("reply") and len(result["reply"]) > 0:
+                # The post exists (has replies), try to get info from the page
+                # Try fetching the author's profile to find this specific tweet
+                pass  # Fall through to profile scrape
+
+        # Strategy 2: Fetch profile and find the tweet
+        # Try with higher post count to find older tweets
+        for post_count in [50, 100, 200]:
+            response = await self.get_twitter_profile(username, post_count=post_count)
+
+            if response.profile:
+                for tweet in response.profile.tweets:
+                    if tweet.tweet_id == tweet_id:
+                        return tweet
+
+                # If we got fewer tweets than requested, no point trying more
+                if len(response.profile.tweets) < post_count:
+                    break
 
         return None
 
