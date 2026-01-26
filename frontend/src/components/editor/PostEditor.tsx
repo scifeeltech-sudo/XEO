@@ -150,16 +150,19 @@ export function PostEditor({ username }: PostEditorProps) {
     }
 
     targetUrlDebounceRef.current = setTimeout(async () => {
+      console.log("[TargetContext] Fetching target post...", targetUrl);
       setFetchingTarget(true);
       setTargetFetchError(null);
       try {
         const context = await api.getPostContext(targetUrl);
+        console.log("[TargetContext] Got context:", context);
         setTargetPostContext(context);
         // Auto-detect language from target post
         const lang = detectLanguage(context.content.text);
+        console.log("[TargetContext] Detected language:", lang);
         setTargetLanguage(lang as "ko" | "en" | "ja" | "zh");
       } catch (error) {
-        console.error("Failed to fetch target post:", error);
+        console.error("[TargetContext] Failed to fetch target post:", error);
         setTargetPostContext(null);
         setTargetFetchError("Could not fetch target post. Please select language manually.");
       } finally {
@@ -176,15 +179,32 @@ export function PostEditor({ username }: PostEditorProps) {
 
   // Fetch personalized post when target context is loaded
   useEffect(() => {
-    console.log("[Personalized] useEffect triggered", { targetPostContext: !!targetPostContext, postType, username });
+    console.log("[Personalized] useEffect triggered", {
+      hasContext: !!targetPostContext,
+      postType,
+      username,
+      targetLanguage,
+      contextText: targetPostContext?.content?.text?.slice(0, 50)
+    });
 
     if (!targetPostContext || postType === "original") {
+      console.log("[Personalized] Skipping - no context or original mode");
       setPersonalizedPost(null);
       return;
     }
 
+    if (!username) {
+      console.log("[Personalized] Skipping - no username");
+      return;
+    }
+
     const fetchPersonalized = async () => {
-      console.log("[Personalized] Starting fetch...");
+      console.log("[Personalized] Starting fetch with:", {
+        username,
+        target_author: targetPostContext.author.username,
+        post_type: postType,
+        language: targetLanguage,
+      });
       setFetchingPersonalized(true);
       try {
         const result = await api.generatePersonalizedPost({
