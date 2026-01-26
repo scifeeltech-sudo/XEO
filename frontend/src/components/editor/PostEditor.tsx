@@ -27,9 +27,6 @@ export function PostEditor({ username }: PostEditorProps) {
     "original"
   );
   const [targetUrl, setTargetUrl] = useState("");
-  const [mediaType, setMediaType] = useState<
-    "image" | "video" | "gif" | undefined
-  >();
   const [analysis, setAnalysis] = useState<PostAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -57,7 +54,6 @@ export function PostEditor({ username }: PostEditorProps) {
     setContent("");
     setPostType("original");
     setTargetUrl("");
-    setMediaType(undefined);
     setAnalysis(null);
     setSelectedTips([]);
     setSuggestion(null);
@@ -85,7 +81,6 @@ export function PostEditor({ username }: PostEditorProps) {
           content: text,
           post_type: postType,
           target_post_url: targetUrl || undefined,
-          media_type: mediaType,
           target_language: langToUse,
         });
         setAnalysis(result);
@@ -111,7 +106,7 @@ export function PostEditor({ username }: PostEditorProps) {
         setLoading(false);
       }
     },
-    [username, postType, targetUrl, mediaType, targetLanguage]
+    [username, postType, targetUrl, targetLanguage]
   );
 
   // Clear analysis when switching post type
@@ -405,26 +400,6 @@ export function PostEditor({ username }: PostEditorProps) {
             </>
           )}
         </button>
-
-        {/* Media Type */}
-        <div className="flex gap-2 items-center">
-          <span className="text-gray-400">Media:</span>
-          {[undefined, "image", "video", "gif"].map((type) => (
-            <button
-              key={type ?? "none"}
-              onClick={() =>
-                setMediaType(type as "image" | "video" | "gif" | undefined)
-              }
-              className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                mediaType === type
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              {type ?? "None"}
-            </button>
-          ))}
-        </div>
 
         {/* Copy Button */}
         <button
