@@ -328,8 +328,9 @@ class ScorePredictor:
         """Determine if a tip can be auto-applied."""
         # Tips that require user input or external action
         non_selectable_keywords = [
-            "이미지", "영상", "미디어", "사진", "동영상",
             "image", "video", "media", "photo",
+            "이미지", "영상", "미디어", "사진", "동영상",
+            "画像", "動画", "图片", "视频",
         ]
         return not any(keyword in action.lower() for keyword in non_selectable_keywords)
 
