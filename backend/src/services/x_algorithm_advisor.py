@@ -39,23 +39,23 @@ X_ALGORITHM_KNOWLEDGE = """
 
 ## Pentagon Score Mapping
 
-### Reach (도달률)
+### Reach
 - Affected by: click, profile_click, share, share_via_dm, share_via_copy_link
 - Boost factors: Trending hashtags, media content, shareable insights
 
-### Engagement (참여도)
+### Engagement
 - Affected by: favorite, reply, repost, quote
 - Boost factors: Questions, controversial takes, emotional content, CTAs
 
-### Virality (바이럴리티)
+### Virality
 - Affected by: repost, quote, share, share_via_dm
 - Boost factors: Shareable format, meme-worthy content, relatable insights
 
-### Quality (품질)
+### Quality
 - Affected by: dwell, follow_author, NOT(not_interested, block, mute, report)
 - Boost factors: Well-written content, valuable insights, proper formatting
 
-### Longevity (지속성)
+### Longevity
 - Affected by: dwell (time spent), bookmark, sustained engagement over time
 - Boost factors: Evergreen content, reference-worthy info, thread format
 
@@ -229,12 +229,12 @@ Provide suggestions in this JSON format:
     {{
       "target_score": "engagement",
       "improvement": "+15%",
-      "action": "구체적인 행동 (한국어)",
-      "reason": "X 알고리즘의 reply 확률을 높이기 때문",
+      "action": "Specific action to take (in target language)",
+      "reason": "Increases p_reply probability in X algorithm",
       "priority": "high"
     }}
   ],
-  "optimized_content": "개선된 콘텐츠 (한국어)",
+  "optimized_content": "Improved content (in target language)",
   "score_predictions": {{
     "reach": "+5%",
     "engagement": "+15%",
@@ -336,13 +336,68 @@ Provide suggestions in this JSON format:
             "longevity": "+0%",
         }
 
+        # Multilingual action texts
+        actions = {
+            "add_question": {
+                "ko": "마지막에 질문을 추가하세요",
+                "en": "Add a question at the end",
+                "ja": "最後に質問を追加してください",
+                "zh": "在末尾添加一个问题",
+            },
+            "add_emoji": {
+                "ko": "적절한 이모지 1-2개를 추가하세요",
+                "en": "Add 1-2 relevant emojis",
+                "ja": "関連する絵文字を1-2個追加してください",
+                "zh": "添加1-2个相关表情符号",
+            },
+            "add_media": {
+                "ko": "이미지나 영상을 추가하세요",
+                "en": "Add an image or video",
+                "ja": "画像や動画を追加してください",
+                "zh": "添加图片或视频",
+            },
+            "add_hashtag": {
+                "ko": "관련 해시태그 1-2개를 추가하세요",
+                "en": "Add 1-2 relevant hashtags",
+                "ja": "関連ハッシュタグを1-2個追加してください",
+                "zh": "添加1-2个相关标签",
+            },
+            "add_cta": {
+                "ko": "공유를 유도하는 CTA를 추가하세요",
+                "en": "Add a share-encouraging CTA",
+                "ja": "共有を促すCTAを追加してください",
+                "zh": "添加鼓励分享的行动号召",
+            },
+            "add_details": {
+                "ko": "내용을 조금 더 구체적으로 작성하세요",
+                "en": "Add more specific details",
+                "ja": "もう少し具体的に書いてください",
+                "zh": "添加更多具体细节",
+            },
+            "make_concise": {
+                "ko": "내용을 간결하게 줄이세요",
+                "en": "Make it more concise",
+                "ja": "より簡潔にしてください",
+                "zh": "使其更简洁",
+            },
+            "add_insights": {
+                "ko": "가치 있는 정보나 인사이트를 추가하세요",
+                "en": "Add valuable insights",
+                "ja": "価値ある情報やインサイトを追加してください",
+                "zh": "添加有价值的见解",
+            },
+        }
+
+        def get_action(key: str) -> str:
+            return actions[key].get(language, actions[key]["en"])
+
         # Engagement suggestions
         if not features.has_question:
             suggestions.append({
                 "target_score": "engagement",
                 "improvement": "+15%",
-                "action": "마지막에 질문을 추가하세요" if language == "ko" else "Add a question at the end",
-                "reason": "X 알고리즘의 reply 확률(p_reply)을 높여 engagement 점수 상승",
+                "action": get_action("add_question"),
+                "reason": "Increases p_reply probability for higher engagement score",
                 "priority": "high",
             })
             score_predictions["engagement"] = "+15%"
@@ -351,8 +406,8 @@ Provide suggestions in this JSON format:
             suggestions.append({
                 "target_score": "engagement",
                 "improvement": "+8%",
-                "action": "적절한 이모지 1-2개를 추가하세요" if language == "ko" else "Add 1-2 relevant emojis",
-                "reason": "시각적 요소가 favorite 확률(p_favorite)을 높임",
+                "action": get_action("add_emoji"),
+                "reason": "Visual elements increase p_favorite probability",
                 "priority": "medium",
             })
 
@@ -361,8 +416,8 @@ Provide suggestions in this JSON format:
             suggestions.append({
                 "target_score": "reach",
                 "improvement": "+20%",
-                "action": "이미지나 영상을 추가하세요" if language == "ko" else "Add an image or video",
-                "reason": "미디어 콘텐츠는 photo_expand, video_view 확률을 높여 노출 증가",
+                "action": get_action("add_media"),
+                "reason": "Media content increases photo_expand and video_view probability",
                 "priority": "high",
             })
             score_predictions["reach"] = "+20%"
@@ -371,8 +426,8 @@ Provide suggestions in this JSON format:
             suggestions.append({
                 "target_score": "reach",
                 "improvement": "+5%",
-                "action": "관련 해시태그 1-2개를 추가하세요" if language == "ko" else "Add 1-2 relevant hashtags",
-                "reason": "해시태그는 검색 노출과 click 확률을 높임",
+                "action": get_action("add_hashtag"),
+                "reason": "Hashtags increase search visibility and p_click probability",
                 "priority": "medium",
             })
 
@@ -381,8 +436,8 @@ Provide suggestions in this JSON format:
             suggestions.append({
                 "target_score": "virality",
                 "improvement": "+10%",
-                "action": "공유를 유도하는 CTA를 추가하세요" if language == "ko" else "Add a share-encouraging CTA",
-                "reason": "CTA는 repost, share 확률을 높여 바이럴리티 증가",
+                "action": get_action("add_cta"),
+                "reason": "CTAs increase p_repost and p_share probability for virality",
                 "priority": "medium",
             })
             score_predictions["virality"] = "+10%"
@@ -392,8 +447,8 @@ Provide suggestions in this JSON format:
             suggestions.append({
                 "target_score": "quality",
                 "improvement": "+10%",
-                "action": "내용을 조금 더 구체적으로 작성하세요" if language == "ko" else "Add more specific details",
-                "reason": "충분한 정보는 dwell time을 높여 품질 점수 상승",
+                "action": get_action("add_details"),
+                "reason": "Sufficient content increases dwell time for better quality score",
                 "priority": "medium",
             })
             score_predictions["quality"] = "+10%"
@@ -401,8 +456,8 @@ Provide suggestions in this JSON format:
             suggestions.append({
                 "target_score": "quality",
                 "improvement": "+5%",
-                "action": "내용을 간결하게 줄이세요" if language == "ko" else "Make it more concise",
-                "reason": "간결한 콘텐츠는 완독률을 높여 not_interested 확률 감소",
+                "action": get_action("make_concise"),
+                "reason": "Concise content improves completion rate and decreases p_not_interested",
                 "priority": "low",
             })
 
@@ -411,8 +466,8 @@ Provide suggestions in this JSON format:
             suggestions.append({
                 "target_score": "longevity",
                 "improvement": "+8%",
-                "action": "가치 있는 정보나 인사이트를 추가하세요" if language == "ko" else "Add valuable insights",
-                "reason": "유용한 정보는 bookmark 확률을 높여 지속성 증가",
+                "action": get_action("add_insights"),
+                "reason": "Valuable content increases p_bookmark for longevity",
                 "priority": "medium",
             })
             score_predictions["longevity"] = "+8%"
