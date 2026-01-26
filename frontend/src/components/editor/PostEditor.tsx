@@ -285,9 +285,12 @@ export function PostEditor({ username }: PostEditorProps) {
             {/* Target Post Preview */}
             {fetchingTarget && (
               <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-                <div className="flex items-center gap-2 text-gray-400">
-                  <span className="animate-spin">⏳</span>
-                  <span>Fetching target post...</span>
+                <div className="flex items-center gap-3 text-gray-400">
+                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div>
+                    <span className="text-white">대상 포스트 가져오는 중...</span>
+                    <p className="text-sm text-gray-500">잠시만 기다려주세요</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -393,8 +396,17 @@ export function PostEditor({ username }: PostEditorProps) {
           disabled={!content.trim() || loading}
           className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          <span>🔍</span>
-          <span>{loading ? "Analyzing..." : "Analyze"}</span>
+          {loading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span>분석 중... 잠시만 기다려주세요</span>
+            </>
+          ) : (
+            <>
+              <span>🔍</span>
+              <span>Analyze</span>
+            </>
+          )}
         </button>
 
         {/* Media Type */}
@@ -531,9 +543,10 @@ export function PostEditor({ username }: PostEditorProps) {
               </h3>
 
               {fetchingPersonalized ? (
-                <div className="flex items-center justify-center py-8 text-gray-400">
-                  <span className="animate-spin mr-2">⏳</span>
-                  AI is analyzing {username}&apos;s style and generating post...
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <p className="text-gray-400">AI가 맞춤형 포스트를 생성 중...</p>
+                  <p className="text-gray-500 text-sm mt-1">잠시만 기다려주세요</p>
                 </div>
               ) : personalizedPost && (
                 <>
@@ -603,7 +616,11 @@ export function PostEditor({ username }: PostEditorProps) {
       {/* Analysis Results */}
       <div className="space-y-6">
         {loading && (
-          <div className="text-center py-8 text-gray-400">Analyzing...</div>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-400">포스트 분석 중...</p>
+            <p className="text-gray-500 text-sm mt-1">잠시만 기다려주세요</p>
+          </div>
         )}
 
         {analysis && !loading && (

@@ -32,12 +32,10 @@ export default function ProfilePage() {
     return (
       <main className="min-h-screen bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-10 bg-gray-700 rounded w-48 mb-4"></div>
-            <div className="h-6 bg-gray-700 rounded w-32 mb-8"></div>
-            <div className="bg-gray-800 rounded-2xl p-6 mb-8">
-              <div className="h-[350px] bg-gray-700 rounded"></div>
-            </div>
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-400 text-lg">@{username} 프로필 분석 중...</p>
+            <p className="text-gray-500 text-sm mt-2">잠시만 기다려주세요</p>
           </div>
         </div>
       </main>
