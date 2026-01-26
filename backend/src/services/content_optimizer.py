@@ -761,7 +761,8 @@ IMPORTANT: Output must be in {target_lang_name}. Return ONLY the compressed text
         - Emoji and hashtag usage patterns
         - Typical post length and structure
 
-        Then generates a contextually appropriate reply/quote that matches their style.
+        If user profile is not available, generates a generic engaging post
+        based only on the target post content.
 
         Args:
             username: User's X username to analyze
@@ -776,23 +777,24 @@ IMPORTANT: Output must be in {target_lang_name}. Return ONLY the compressed text
         if not self.anthropic_client:
             return None
 
-        # Fetch user's profile and recent posts
-        response = await self.client.get_twitter_profile(username, post_count=10)
+        # Try to fetch user's profile and recent posts
+        recent_posts = []
+        has_profile = False
 
-        if not response.success or not response.profile:
-            return None
+        try:
+            response = await self.client.get_twitter_profile(username, post_count=10)
+            if response.success and response.profile:
+                recent_posts = [t.content for t in response.profile.original_tweets[:10] if t.content]
+                has_profile = bool(recent_posts)
+        except Exception:
+            pass  # Continue without profile
 
-        profile = response.profile
-        recent_posts = [t.content for t in profile.original_tweets[:10] if t.content]
-
-        if not recent_posts:
-            return None
-
-        # Analyze user style and generate post
         lang_names = {"ko": "Korean", "en": "English", "ja": "Japanese", "zh": "Chinese"}
         target_lang = lang_names.get(language, "English")
 
-        system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
+        if has_profile:
+            # With profile: analyze style and generate personalized post
+            system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
 
 You are an expert at analyzing writing styles and generating personalized content.
 
@@ -809,7 +811,7 @@ Style Analysis Guidelines:
 - Common phrases or expressions
 - Topics they engage with"""
 
-        user_prompt = f"""Analyze this user's writing style and generate a personalized {post_type}.
+            user_prompt = f"""Analyze this user's writing style and generate a personalized {post_type}.
 
 **User's Recent Posts ({username}):**
 {chr(10).join(f'{i+1}. "{post[:200]}"' for i, post in enumerate(recent_posts[:7]))}
@@ -835,6 +837,40 @@ Respond in this exact JSON format:
   "confidence": 0.85,
   "reasoning": "Brief explanation of why this matches their style"
 }}"""
+        else:
+            # Without profile: generate generic engaging post
+            system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
+
+You are an expert at generating engaging X/Twitter content.
+
+Your task:
+1. Generate an engaging {post_type} to the target post
+2. Make it optimized for the X algorithm
+3. Keep it natural and conversational"""
+
+            user_prompt = f"""Generate an engaging {post_type} to this post.
+
+**Target Post by @{target_author}:**
+"{target_post_content[:300]}"
+
+**Task:** Generate a {post_type} that:
+1. Is a natural, engaging response to the target post
+2. Is optimized for X algorithm engagement
+3. Is written in {target_lang}
+4. Uses appropriate tone for the context
+
+Respond in this exact JSON format:
+{{
+  "generated_content": "The generated {post_type} text in {target_lang}",
+  "style_analysis": {{
+    "tone": "conversational and engaging",
+    "emoji_style": "moderate, context-appropriate",
+    "topics": ["topics", "from", "target post"],
+    "writing_pattern": "natural and engaging"
+  }},
+  "confidence": 0.6,
+  "reasoning": "Generated based on target post context (user profile not available)"
+}}"""
 
         try:
             message = self.anthropic_client.messages.create(
@@ -853,7 +889,7 @@ Respond in this exact JSON format:
                     "username": username,
                     "generated_content": result.get("generated_content", ""),
                     "style_analysis": result.get("style_analysis", {}),
-                    "confidence": result.get("confidence", 0.7),
+                    "confidence": result.get("confidence", 0.6 if not has_profile else 0.85),
                     "reasoning": result.get("reasoning", ""),
                     "post_type": post_type,
                     "target_author": target_author,
