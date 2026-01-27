@@ -286,21 +286,30 @@ export function PostEditor({ username }: PostEditorProps) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {/* Editor */}
       <div className="space-y-6">
-        {/* Post Type Selector */}
-        <div className="flex gap-2">
-          {(["original", "reply", "quote"] as const).map((type) => (
-            <button
-              key={type}
-              onClick={() => setPostType(type)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                postType === type
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              }`}
-            >
-              {type === "original" ? "My Post" : type === "reply" ? "Reply" : "Quote"}
-            </button>
-          ))}
+        {/* Post Type Selector + Reset Button */}
+        <div className="flex justify-between items-center">
+          <div className="flex gap-2">
+            {(["original", "reply", "quote"] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setPostType(type)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  postType === type
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                }`}
+              >
+                {type === "original" ? "My Post" : type === "reply" ? "Reply" : "Quote"}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+          >
+            <span>🔄</span>
+            <span>Reset</span>
+          </button>
         </div>
 
         {/* Target URL (for reply/quote) */}
@@ -613,14 +622,6 @@ export function PostEditor({ username }: PostEditorProps) {
           )}
         </div>
 
-        {/* Reset Button */}
-        <button
-          onClick={handleReset}
-          className="w-full py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <span>🔄</span>
-          <span>Reset</span>
-        </button>
       </div>
 
       {/* Analysis Results */}
