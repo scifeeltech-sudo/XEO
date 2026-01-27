@@ -192,9 +192,17 @@ export interface PersonalizedPostRequest {
   persona?: PersonaType;
 }
 
+export interface TargetAnalysis {
+  main_topic: string;
+  key_points: string[];
+  sentiment: string;
+  what_to_address: string;
+}
+
 export interface PersonalizedPostResponse {
   username: string;
   generated_content: string;
+  target_analysis?: TargetAnalysis;
   style_analysis: StyleAnalysis;
   confidence: number;
   reasoning: string;

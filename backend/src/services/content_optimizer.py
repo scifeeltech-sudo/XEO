@@ -874,40 +874,59 @@ Return ONLY the Chinese translation, nothing else."""
         # Build prompt based on whether we have recent posts
         system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
 
-You are an expert at analyzing writing styles and generating personalized content.
+You are an expert at analyzing content context and generating personalized responses.
 {persona_instruction}
 
+CRITICAL: Before generating any response, you MUST first deeply understand the target post:
+1. What is the main topic or subject?
+2. What specific claims, opinions, or questions are being made?
+3. What is the tone and sentiment (excited, frustrated, curious, etc.)?
+4. What would be a meaningful response that directly engages with these points?
+
 Your task:
-1. Analyze the user's writing style from their recent posts (if available)
-2. Generate a {post_type} that matches their style{' AND follows the specified persona' if persona else ''}
-3. Make it engaging and optimized for the X algorithm
+1. FIRST: Thoroughly analyze the target post's content and context
+2. THEN: Analyze the user's writing style from their recent posts (if available)
+3. FINALLY: Generate a {post_type} that DIRECTLY RESPONDS to the target post's specific points
+   {' while following the specified persona style' if persona else ''}
+
+The response MUST:
+- Reference or address specific points from the target post
+- NOT be generic or off-topic
+- Show clear understanding of what the target post is saying
 
 Style Analysis Guidelines:
 - Tone: formal vs casual, serious vs humorous
 - Emoji usage: frequency, types, positions
 - Sentence structure: short vs long, simple vs complex
-- Common phrases or expressions
 
 IMPORTANT: The generated content MUST be in {target_lang}."""
 
         if recent_posts:
-            user_prompt = f"""Analyze this user's writing style and generate a personalized {post_type}.
+            user_prompt = f"""First, analyze the target post to understand its context. Then generate a personalized {post_type}.
+
+**Target Post by @{target_author}:**
+"{target_post_content}"
 
 **User's Recent Posts ({username}):**
 {chr(10).join(f'{i+1}. "{post[:200]}"' for i, post in enumerate(recent_posts))}
 
-**Target Post by @{target_author}:**
-"{target_post_content[:300]}"
+**Task:**
+1. FIRST: Analyze what @{target_author}'s post is actually saying
+2. THEN: Generate a {post_type} that:
+   - DIRECTLY addresses the specific topic/claims in the target post
+   - Matches {username}'s writing style
+   {"- Follows the " + persona + " persona style" if persona else ""}
+   - Is written in {target_lang}
 
-**Task:** Generate a {post_type} that:
-1. Matches {username}'s writing style based on their recent posts
-2. {"Follows the " + persona + " persona style" if persona else "Is a natural response to the target post"}
-3. Is optimized for X algorithm engagement
-4. Is written in {target_lang}
-
-Respond in this exact JSON format:
+Respond in this exact JSON format (ALL fields are REQUIRED - do not skip any):
 {{
-  "generated_content": "The generated {post_type} text in {target_lang}",
+  "target_analysis": {{
+    "main_topic": "REQUIRED: What is this post fundamentally about?",
+    "key_points": ["REQUIRED: specific claim or point 1", "specific claim or point 2"],
+    "sentiment": "REQUIRED: The emotional tone (optimistic, critical, curious, etc.)",
+    "what_to_address": "REQUIRED: What specific aspect should the response engage with?"
+  }},
+  "generated_content": "REQUIRED: The generated {post_type} that DIRECTLY responds to the target post's points, in {target_lang}",
   "style_analysis": {{
     "tone": "description of user's tone",
     "emoji_style": "how they use emojis",
@@ -915,33 +934,45 @@ Respond in this exact JSON format:
     "writing_pattern": "description of their writing pattern"
   }},
   "confidence": 0.8,
-  "reasoning": "Brief explanation of why this matches their style{' and persona' if persona else ''}"
-}}"""
+  "reasoning": "How this response specifically addresses the target post's content{' while following ' + persona + ' persona' if persona else ''}"
+}}
+
+IMPORTANT: You MUST include the "target_analysis" object in your response. This is required for quality assurance."""
         else:
             # No recent posts available - generate based on persona or generic engaging post
-            persona_task = f"Follows the {persona} persona style" if persona else "Is a natural, engaging response to the target post"
-            user_prompt = f"""Generate an engaging {post_type} to this post.
+            persona_task = f"Follows the {persona} persona style" if persona else "Is a natural, engaging response"
+            user_prompt = f"""First, analyze the target post to understand its context. Then generate an engaging {post_type}.
 
 **Target Post by @{target_author}:**
-"{target_post_content[:300]}"
+"{target_post_content}"
 
-**Task:** Generate a {post_type} that:
-1. {persona_task}
-2. Is optimized for X algorithm engagement
-3. Is written in {target_lang}
+**Task:**
+1. FIRST: Analyze what @{target_author}'s post is actually saying
+2. THEN: Generate a {post_type} that:
+   - DIRECTLY addresses the specific topic/claims in the target post
+   - {persona_task}
+   - Is written in {target_lang}
 
-Respond in this exact JSON format:
+Respond in this exact JSON format (ALL fields are REQUIRED - do not skip any):
 {{
-  "generated_content": "The generated {post_type} text in {target_lang}",
+  "target_analysis": {{
+    "main_topic": "REQUIRED: What is this post fundamentally about?",
+    "key_points": ["REQUIRED: specific claim or point 1", "specific claim or point 2"],
+    "sentiment": "REQUIRED: The emotional tone (optimistic, critical, curious, etc.)",
+    "what_to_address": "REQUIRED: What specific aspect should the response engage with?"
+  }},
+  "generated_content": "REQUIRED: The generated {post_type} that DIRECTLY responds to the target post's points, in {target_lang}",
   "style_analysis": {{
     "tone": "{'based on ' + persona + ' persona' if persona else 'conversational and engaging'}",
     "emoji_style": "moderate, context-appropriate",
-    "topics": ["topics", "from", "target post"],
+    "topics": ["extracted", "from", "target post"],
     "writing_pattern": "{'following ' + persona + ' style' if persona else 'natural and engaging'}"
   }},
   "confidence": {0.7 if persona else 0.5},
-  "reasoning": "Generated {'with ' + persona + ' persona' if persona else 'without user style data'} - based on target post context"
-}}"""
+  "reasoning": "How this response specifically addresses the target post's content{' while following ' + persona + ' persona' if persona else ''}"
+}}
+
+IMPORTANT: You MUST include the "target_analysis" object in your response. This is required for quality assurance."""
 
         try:
             message = self.anthropic_client.messages.create(
@@ -959,6 +990,7 @@ Respond in this exact JSON format:
                 response_data = {
                     "username": username,
                     "generated_content": result.get("generated_content", ""),
+                    "target_analysis": result.get("target_analysis", {}),
                     "style_analysis": result.get("style_analysis", {}),
                     "confidence": result.get("confidence", 0.5 if not recent_posts else 0.8),
                     "reasoning": result.get("reasoning", ""),

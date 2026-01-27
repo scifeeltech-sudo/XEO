@@ -407,9 +407,17 @@ class PersonaInfoResponse(BaseModel):
     pentagon_boost: dict[str, float]
 
 
+class TargetAnalysisResponse(BaseModel):
+    main_topic: str
+    key_points: list[str]
+    sentiment: str
+    what_to_address: str
+
+
 class PersonalizedPostResponse(BaseModel):
     username: str
     generated_content: str
+    target_analysis: Optional[TargetAnalysisResponse] = None
     style_analysis: StyleAnalysisResponse
     confidence: float
     reasoning: str
