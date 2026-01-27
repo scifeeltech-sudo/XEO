@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext, PersonalizedPostResponse, Persona, PersonaType } from "@/types/api";
+import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext, PersonalizedPostResponse, Persona, PersonaType, PentagonScores } from "@/types/api";
 // Lazy-loaded RadarChart to reduce initial bundle size (~500KB reduction)
 // Fallback: import { RadarChart } from "@/components/charts/RadarChart";
 import { RadarChartLazy as RadarChart } from "@/components/charts/RadarChartLazy";
@@ -60,6 +60,9 @@ export function PostEditor({ username }: PostEditorProps) {
   const [showPolishMenu, setShowPolishMenu] = useState(false);
   const [showTranslateMenu, setShowTranslateMenu] = useState(false);
 
+  // Improved scores after applying tips
+  const [improvedScores, setImprovedScores] = useState<PentagonScores | null>(null);
+
   const targetUrlDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Reset all state to start fresh
@@ -77,6 +80,7 @@ export function PostEditor({ username }: PostEditorProps) {
     setTargetFetchError(null);
     setPersonalizedPost(null);
     setSelectedPersona(null);
+    setImprovedScores(null);
   }, []);
 
   const analyzePost = useCallback(
@@ -102,6 +106,7 @@ export function PostEditor({ username }: PostEditorProps) {
         // Reset tip selection when analysis changes
         setSelectedTips([]);
         setSuggestion(null);
+        setImprovedScores(null);
         // Update detected language for apply-tips
         if (result.context?.target_post_content) {
           // Reply/Quote: use target post language from context
@@ -137,6 +142,7 @@ export function PostEditor({ username }: PostEditorProps) {
     setTargetPostContext(null);
     setTargetFetchError(null);
     setSelectedPersona(null);
+    setImprovedScores(null);
   }, [postType]);
 
   // Fetch target post context when URL changes
@@ -257,6 +263,20 @@ export function PostEditor({ username }: PostEditorProps) {
       });
       setSuggestion(result);
       setSuggestionLanguage(detectedLanguage); // Set initial suggestion language
+
+      // Calculate improved scores based on predicted_improvement
+      if (result.predicted_improvement && analysis) {
+        const newScores = { ...analysis.scores };
+        Object.entries(result.predicted_improvement).forEach(([key, value]) => {
+          // Parse "+15%" format to number
+          const match = value.match(/([+-]?\d+)/);
+          if (match && key in newScores) {
+            const improvement = parseInt(match[1], 10);
+            newScores[key as keyof typeof newScores] = Math.min(100, Math.max(0, newScores[key as keyof typeof newScores] + improvement));
+          }
+        });
+        setImprovedScores(newScores);
+      }
     } catch (error) {
       console.error("Failed to apply tips:", error);
     } finally {
@@ -508,9 +528,9 @@ export function PostEditor({ username }: PostEditorProps) {
         </div>
 
         {/* Analysis Results - Part of Row 1 */}
-        <div className="flex flex-col justify-between h-full">
+        <div className="flex flex-col justify-center h-full">
         {loading && (
-          <div className="flex flex-col items-center justify-center py-12">
+          <div className="flex flex-col items-center justify-center h-full min-h-[300px]">
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-gray-400">Analyzing post...</p>
             <p className="text-gray-500 text-sm mt-1">Please wait</p>
@@ -518,19 +538,28 @@ export function PostEditor({ username }: PostEditorProps) {
         )}
 
         {analysis && !loading && (
-          <div className="bg-gray-800 rounded-xl p-4 h-full flex flex-col justify-center mt-14">
+          <div className="bg-gray-800 rounded-xl p-4 h-full flex flex-col justify-center mt-6">
             <h3 className="text-lg font-semibold text-white mb-2 text-center">
-              Predicted Score
+              {improvedScores ? "Improved Score" : "Predicted Score"}
+              {improvedScores && <span className="text-green-400 text-sm ml-2">✨</span>}
             </h3>
-            <RadarChart scores={analysis.scores} size={240} />
+            <RadarChart scores={improvedScores || analysis.scores} size={240} />
             <div className="text-center mt-2">
-              <span className="text-2xl font-bold text-blue-400">
+              <span className={`text-2xl font-bold ${improvedScores ? "text-green-400" : "text-blue-400"}`}>
                 {(
-                  Object.values(analysis.scores).reduce((a, b) => a + b, 0) /
+                  Object.values(improvedScores || analysis.scores).reduce((a, b) => a + b, 0) /
                   5
                 ).toFixed(0)}
               </span>
               <span className="text-gray-400 ml-2">/ 100</span>
+              {improvedScores && analysis && (
+                <span className="text-green-400 text-sm ml-2">
+                  (+{(
+                    (Object.values(improvedScores).reduce((a, b) => a + b, 0) -
+                    Object.values(analysis.scores).reduce((a, b) => a + b, 0)) / 5
+                  ).toFixed(0)})
+                </span>
+              )}
             </div>
           </div>
         )}
