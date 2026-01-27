@@ -17,9 +17,26 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function fetchAnalysis() {
+      // Check sessionStorage cache first
+      const cacheKey = `profile_analysis_${username}`;
+      const cached = sessionStorage.getItem(cacheKey);
+
+      if (cached) {
+        try {
+          const cachedData = JSON.parse(cached);
+          setAnalysis(cachedData);
+          setLoading(false);
+          return;
+        } catch {
+          // Invalid cache, continue to fetch
+        }
+      }
+
       try {
         const result = await api.analyzeProfile(username);
         setAnalysis(result);
+        // Cache the result in sessionStorage
+        sessionStorage.setItem(cacheKey, JSON.stringify(result));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to analyze profile");
       } finally {

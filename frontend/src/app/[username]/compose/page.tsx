@@ -15,7 +15,7 @@ export default function ComposePage() {
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => router.back()}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-3xl text-gray-400 hover:text-white transition-colors px-2"
           >
             ←
           </button>
