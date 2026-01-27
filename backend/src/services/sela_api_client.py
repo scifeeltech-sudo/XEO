@@ -360,6 +360,8 @@ class SelaAPIClient:
         Returns:
             TweetData if found, None otherwise
         """
+        print(f"[DEBUG] get_post_context called with URL: {post_url}")
+
         # Parse username and tweet_id from URL
         # Format: https://x.com/username/status/tweet_id
         try:
@@ -368,19 +370,27 @@ class SelaAPIClient:
                 status_idx = parts.index("status")
                 username = parts[status_idx - 1]
                 tweet_id = parts[status_idx + 1]
+                print(f"[DEBUG] Parsed: username={username}, tweet_id={tweet_id}")
             else:
+                print(f"[DEBUG] No 'status' in URL parts: {parts}")
                 return None
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(f"[DEBUG] URL parse error: {e}")
             return None
 
         # Strategy 1: Try TWITTER_POST scrape first
+        print(f"[DEBUG] Strategy 1: Trying TWITTER_POST scrape...")
         post_response = await self.get_twitter_post(post_url)
+        print(f"[DEBUG] TWITTER_POST response: success={post_response.success}, has_data={post_response.data is not None}")
         if post_response.success and post_response.data:
             result = post_response.data.get("data", {}).get("result", {})
             post_data = result.get("post", {})
+            print(f"[DEBUG] TWITTER_POST result keys: {result.keys() if result else 'None'}")
+            print(f"[DEBUG] TWITTER_POST post_data keys: {post_data.keys() if post_data else 'None'}")
 
             # If post data is available, parse and return it
             if post_data and post_data.get("content"):
+                print(f"[DEBUG] Found post via TWITTER_POST!")
                 return TweetData.from_api_response(post_data)
 
             # Sometimes the post might be in a different format
@@ -388,6 +398,7 @@ class SelaAPIClient:
             if result.get("reply") and len(result["reply"]) > 0:
                 # The post exists (has replies), try to get info from the page
                 # Try fetching the author's profile to find this specific tweet
+                print(f"[DEBUG] Post has replies but no content, falling through to profile scrape")
                 pass  # Fall through to profile scrape
 
         # Strategy 2: Fetch profile and find the tweet
@@ -395,11 +406,18 @@ class SelaAPIClient:
         import asyncio
 
         async def find_tweet_in_profile(post_count: int) -> TweetData | None:
+            print(f"[DEBUG] Strategy 2: Fetching profile with post_count={post_count}")
             response = await self.get_twitter_profile(username, post_count=post_count)
             if response.profile:
+                tweet_ids = [t.tweet_id for t in response.profile.tweets[:5]]
+                print(f"[DEBUG] Profile has {len(response.profile.tweets)} tweets, first 5 IDs: {tweet_ids}")
                 for tweet in response.profile.tweets:
                     if tweet.tweet_id == tweet_id:
+                        print(f"[DEBUG] Found matching tweet!")
                         return tweet
+                print(f"[DEBUG] Tweet {tweet_id} not found in {post_count} posts")
+            else:
+                print(f"[DEBUG] Profile fetch failed or empty for {username}")
             return None
 
         # Start with smallest request, then try larger ones in parallel
@@ -408,6 +426,7 @@ class SelaAPIClient:
             return result
 
         # If not found in 50, try 100 and 200 in parallel
+        print(f"[DEBUG] Not found in 50, trying 100 and 200 in parallel...")
         results = await asyncio.gather(
             find_tweet_in_profile(100),
             find_tweet_in_profile(200),
@@ -417,7 +436,10 @@ class SelaAPIClient:
         for r in results:
             if isinstance(r, TweetData):
                 return r
+            if isinstance(r, Exception):
+                print(f"[DEBUG] Exception in parallel fetch: {r}")
 
+        print(f"[DEBUG] Tweet not found in any strategy")
         return None
 
 
