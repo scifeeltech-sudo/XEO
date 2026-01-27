@@ -166,16 +166,17 @@ class WeightedScorer:
         """
 
         # Base probabilities from profile history
-        base_engagement = profile_features.avg_engagement_rate
+        # Ensure minimum engagement rate to prevent scores from collapsing to 0
+        base_engagement = max(profile_features.avg_engagement_rate, 0.03)
 
         probs = ActionProbabilities(
-            p_favorite=base_engagement * 0.6,
-            p_reply=base_engagement * 0.15,
-            p_repost=base_engagement * 0.15,
-            p_quote=base_engagement * 0.05,
+            p_favorite=max(base_engagement * 0.6, 0.02),
+            p_reply=max(base_engagement * 0.15, 0.01),
+            p_repost=max(base_engagement * 0.15, 0.01),  # Minimum for virality
+            p_quote=max(base_engagement * 0.05, 0.005),  # Minimum for virality
             p_click=0.20,
             p_profile_click=0.10,
-            p_share=base_engagement * 0.05,
+            p_share=max(base_engagement * 0.05, 0.005),  # Minimum for virality
             p_dwell=0.30,
             p_video_view=0.0,
             p_follow_author=0.005,
