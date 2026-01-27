@@ -160,12 +160,36 @@ export interface StyleAnalysis {
   writing_pattern: string;
 }
 
+// Persona types
+export type PersonaType = "empathetic" | "contrarian" | "expander" | "expert";
+
+export interface Persona {
+  id: PersonaType;
+  name: string;
+  name_ko: string;
+  icon: string;
+  description: string;
+  description_ko: string;
+  risk_level: "low" | "medium" | "high";
+  pentagon_boost: Record<string, number>;
+  target_actions: string[];
+}
+
+export interface PersonaInfo {
+  id: PersonaType;
+  name: string;
+  name_ko: string;
+  icon: string;
+  pentagon_boost: Record<string, number>;
+}
+
 export interface PersonalizedPostRequest {
   username: string;
   target_post_content: string;
   target_author: string;
   post_type: "reply" | "quote";
   language: string;
+  persona?: PersonaType;
 }
 
 export interface PersonalizedPostResponse {
@@ -176,4 +200,5 @@ export interface PersonalizedPostResponse {
   reasoning: string;
   post_type: string;
   target_author: string;
+  persona?: PersonaInfo;
 }

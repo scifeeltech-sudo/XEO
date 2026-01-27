@@ -389,6 +389,7 @@ class PersonalizedPostRequest(BaseModel):
     target_author: str
     post_type: Literal["reply", "quote"]
     language: str = "en"
+    persona: Optional[Literal["empathetic", "contrarian", "expander", "expert"]] = None
 
 
 class StyleAnalysisResponse(BaseModel):
@@ -396,6 +397,14 @@ class StyleAnalysisResponse(BaseModel):
     emoji_style: str
     topics: list[str]
     writing_pattern: str
+
+
+class PersonaInfoResponse(BaseModel):
+    id: str
+    name: str
+    name_ko: str
+    icon: str
+    pentagon_boost: dict[str, float]
 
 
 class PersonalizedPostResponse(BaseModel):
@@ -406,18 +415,21 @@ class PersonalizedPostResponse(BaseModel):
     reasoning: str
     post_type: str
     target_author: str
+    persona: Optional[PersonaInfoResponse] = None
 
 
 @router.post("/generate-personalized", response_model=Optional[PersonalizedPostResponse])
 async def generate_personalized_post(request: PersonalizedPostRequest):
     """Generate a personalized post based on user's profile and writing style.
 
-    Analyzes the user's recent 10 posts to understand their:
+    Analyzes the user's recent 5 posts to understand their:
     - Writing style and tone
     - Interests and topics
     - Emoji and hashtag usage patterns
 
-    Then generates a contextually appropriate reply/quote that matches their style.
+    Optionally applies a persona (empathetic, contrarian, expander, expert) to
+    shape the response style while maintaining the user's voice.
+
     Returns null if profile not found or insufficient data.
     """
     try:
@@ -427,9 +439,42 @@ async def generate_personalized_post(request: PersonalizedPostRequest):
             target_author=request.target_author,
             post_type=request.post_type,
             language=request.language,
+            persona=request.persona,
         )
 
         # Return null instead of 404 if profile not found
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Personas Endpoint ---
+
+class PersonaResponse(BaseModel):
+    id: str
+    name: str
+    name_ko: str
+    icon: str
+    description: str
+    description_ko: str
+    risk_level: str
+    pentagon_boost: dict[str, float]
+    target_actions: list[str]
+
+
+class PersonasListResponse(BaseModel):
+    personas: list[PersonaResponse]
+
+
+@router.get("/personas", response_model=PersonasListResponse)
+async def get_personas():
+    """Get all available personas for personalized post generation.
+
+    Personas define the "voice" or style of the generated response:
+    - empathetic: Warm, supportive response that validates the original post
+    - contrarian: Thoughtful counterpoint that sparks healthy discussion
+    - expander: Adds related insights and broadens the topic
+    - expert: Deep, authoritative analysis with domain expertise
+    """
+    from src.services.personas import get_all_personas
+    return {"personas": get_all_personas()}

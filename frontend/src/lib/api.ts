@@ -9,6 +9,7 @@ import {
   TargetPostContext,
   PersonalizedPostRequest,
   PersonalizedPostResponse,
+  Persona,
 } from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -113,6 +114,17 @@ class APIClient {
     }
 
     return response.json();
+  }
+
+  async getPersonas(): Promise<Persona[]> {
+    const response = await fetch(`${this.baseUrl}/api/v1/post/personas`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to get personas: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.personas;
   }
 }
 

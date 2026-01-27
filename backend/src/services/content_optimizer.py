@@ -818,8 +818,9 @@ Return ONLY the Chinese translation, nothing else."""
         target_author: str,
         post_type: Literal["reply", "quote"],
         language: str = "en",
+        persona: Optional[str] = None,
     ) -> Optional[dict]:
-        """Generate a personalized post based on user's recent posts.
+        """Generate a personalized post based on user's recent posts and optional persona.
 
         Analyzes the user's recent 5 posts to understand their:
         - Writing style and tone
@@ -832,9 +833,10 @@ Return ONLY the Chinese translation, nothing else."""
             target_author: Author of the target post
             post_type: Type of post (reply or quote)
             language: Target language for the generated post
+            persona: Optional persona type (empathetic, contrarian, expander, expert)
 
         Returns:
-            dict with generated_content, style_analysis, and confidence score
+            dict with generated_content, style_analysis, confidence score, and persona info
         """
         if not self.anthropic_client:
             return None
@@ -851,21 +853,42 @@ Return ONLY the Chinese translation, nothing else."""
         lang_names = {"ko": "Korean", "en": "English", "ja": "Japanese", "zh": "Chinese"}
         target_lang = lang_names.get(language, "English")
 
+        # Build persona instruction if provided
+        persona_instruction = ""
+        persona_info = None
+        if persona:
+            try:
+                from src.services.personas import get_persona, get_persona_for_prompt
+                persona_obj = get_persona(persona)
+                persona_instruction = get_persona_for_prompt(persona, language)
+                persona_info = {
+                    "id": persona_obj.id,
+                    "name": persona_obj.name,
+                    "name_ko": persona_obj.name_ko,
+                    "icon": persona_obj.icon,
+                    "pentagon_boost": persona_obj.pentagon_boost,
+                }
+            except ValueError:
+                pass  # Invalid persona, ignore
+
         # Build prompt based on whether we have recent posts
         system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
 
 You are an expert at analyzing writing styles and generating personalized content.
+{persona_instruction}
 
 Your task:
 1. Analyze the user's writing style from their recent posts (if available)
-2. Generate a {post_type} that matches their style
+2. Generate a {post_type} that matches their style{' AND follows the specified persona' if persona else ''}
 3. Make it engaging and optimized for the X algorithm
 
 Style Analysis Guidelines:
 - Tone: formal vs casual, serious vs humorous
 - Emoji usage: frequency, types, positions
 - Sentence structure: short vs long, simple vs complex
-- Common phrases or expressions"""
+- Common phrases or expressions
+
+IMPORTANT: The generated content MUST be in {target_lang}."""
 
         if recent_posts:
             user_prompt = f"""Analyze this user's writing style and generate a personalized {post_type}.
@@ -878,7 +901,7 @@ Style Analysis Guidelines:
 
 **Task:** Generate a {post_type} that:
 1. Matches {username}'s writing style based on their recent posts
-2. Is a natural response to the target post
+2. {"Follows the " + persona + " persona style" if persona else "Is a natural response to the target post"}
 3. Is optimized for X algorithm engagement
 4. Is written in {target_lang}
 
@@ -892,17 +915,18 @@ Respond in this exact JSON format:
     "writing_pattern": "description of their writing pattern"
   }},
   "confidence": 0.8,
-  "reasoning": "Brief explanation of why this matches their style"
+  "reasoning": "Brief explanation of why this matches their style{' and persona' if persona else ''}"
 }}"""
         else:
-            # No recent posts available - generate generic engaging post
+            # No recent posts available - generate based on persona or generic engaging post
+            persona_task = f"Follows the {persona} persona style" if persona else "Is a natural, engaging response to the target post"
             user_prompt = f"""Generate an engaging {post_type} to this post.
 
 **Target Post by @{target_author}:**
 "{target_post_content[:300]}"
 
 **Task:** Generate a {post_type} that:
-1. Is a natural, engaging response to the target post
+1. {persona_task}
 2. Is optimized for X algorithm engagement
 3. Is written in {target_lang}
 
@@ -910,13 +934,13 @@ Respond in this exact JSON format:
 {{
   "generated_content": "The generated {post_type} text in {target_lang}",
   "style_analysis": {{
-    "tone": "conversational and engaging",
+    "tone": "{'based on ' + persona + ' persona' if persona else 'conversational and engaging'}",
     "emoji_style": "moderate, context-appropriate",
     "topics": ["topics", "from", "target post"],
-    "writing_pattern": "natural and engaging"
+    "writing_pattern": "{'following ' + persona + ' style' if persona else 'natural and engaging'}"
   }},
-  "confidence": 0.5,
-  "reasoning": "Generated without user style data - based on target post context only"
+  "confidence": {0.7 if persona else 0.5},
+  "reasoning": "Generated {'with ' + persona + ' persona' if persona else 'without user style data'} - based on target post context"
 }}"""
 
         try:
@@ -932,7 +956,7 @@ Respond in this exact JSON format:
             # Parse JSON response
             result = self._parse_json_response(response_text)
             if result:
-                return {
+                response_data = {
                     "username": username,
                     "generated_content": result.get("generated_content", ""),
                     "style_analysis": result.get("style_analysis", {}),
@@ -941,6 +965,10 @@ Respond in this exact JSON format:
                     "post_type": post_type,
                     "target_author": target_author,
                 }
+                # Add persona info if used
+                if persona_info:
+                    response_data["persona"] = persona_info
+                return response_data
 
             return None
 

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext, PersonalizedPostResponse } from "@/types/api";
+import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext, PersonalizedPostResponse, Persona, PersonaType } from "@/types/api";
 // Lazy-loaded RadarChart to reduce initial bundle size (~500KB reduction)
 // Fallback: import { RadarChart } from "@/components/charts/RadarChart";
 import { RadarChartLazy as RadarChart } from "@/components/charts/RadarChartLazy";
@@ -50,6 +50,12 @@ export function PostEditor({ username }: PostEditorProps) {
   const [personalizedPost, setPersonalizedPost] = useState<PersonalizedPostResponse | null>(null);
   const [fetchingPersonalized, setFetchingPersonalized] = useState(false);
 
+  // Persona state
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [selectedPersona, setSelectedPersona] = useState<PersonaType | null>(null);
+  const [suggestionPersona, setSuggestionPersona] = useState<PersonaType | null>(null);
+  const [regeneratingSuggestion, setRegeneratingSuggestion] = useState(false);
+
   const targetUrlDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Reset all state to start fresh
@@ -66,6 +72,8 @@ export function PostEditor({ username }: PostEditorProps) {
     setTargetPostContext(null);
     setTargetFetchError(null);
     setPersonalizedPost(null);
+    setSelectedPersona(null);
+    setSuggestionPersona(null);
   }, []);
 
   const analyzePost = useCallback(
@@ -113,6 +121,11 @@ export function PostEditor({ username }: PostEditorProps) {
     [username, postType, targetUrl, targetLanguage]
   );
 
+  // Fetch personas on mount
+  useEffect(() => {
+    api.getPersonas().then(setPersonas).catch(console.error);
+  }, []);
+
   // Clear analysis when switching post type
   useEffect(() => {
     setAnalysis(null);
@@ -120,6 +133,7 @@ export function PostEditor({ username }: PostEditorProps) {
     setSuggestion(null);
     setTargetPostContext(null);
     setTargetFetchError(null);
+    setSelectedPersona(null);
   }, [postType]);
 
   // Fetch target post context when URL changes
@@ -171,7 +185,7 @@ export function PostEditor({ username }: PostEditorProps) {
     };
   }, [targetUrl, postType]);
 
-  // Fetch personalized post when target context is loaded
+  // Fetch personalized post when target context is loaded or persona changes
   useEffect(() => {
     if (!targetPostContext || postType === "original") {
       setPersonalizedPost(null);
@@ -191,6 +205,7 @@ export function PostEditor({ username }: PostEditorProps) {
           target_author: targetPostContext.author.username,
           post_type: postType as "reply" | "quote",
           language: targetLanguage,
+          persona: selectedPersona || undefined,
         });
         setPersonalizedPost(result);
       } catch {
@@ -202,7 +217,7 @@ export function PostEditor({ username }: PostEditorProps) {
     };
 
     fetchPersonalized();
-  }, [targetPostContext, postType, username, targetLanguage]);
+  }, [targetPostContext, postType, username, targetLanguage, selectedPersona]);
 
   const handleTipToggle = (tipId: string) => {
     setSelectedTips((prev) => {
@@ -281,6 +296,38 @@ export function PostEditor({ username }: PostEditorProps) {
       console.error("Failed to polish:", error);
     } finally {
       setPolishing(null);
+    }
+  };
+
+  // Regenerate suggestion with persona styling
+  const handleSuggestionPersona = async (personaId: PersonaType | null) => {
+    if (!suggestion || regeneratingSuggestion) return;
+
+    setSuggestionPersona(personaId);
+    if (!personaId) return; // Just deselecting
+
+    setRegeneratingSuggestion(true);
+    try {
+      // Use generate-personalized-post to restyle the suggestion with persona
+      const result = await api.generatePersonalizedPost({
+        username,
+        target_post_content: suggestion.suggested_content,
+        target_author: username, // Self as author since we're restyling our own content
+        post_type: "quote", // Use quote to "add perspective" to existing content
+        language: suggestionLanguage,
+        persona: personaId,
+      });
+
+      if (result?.generated_content) {
+        setSuggestion({
+          ...suggestion,
+          suggested_content: result.generated_content,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to apply persona to suggestion:", error);
+    } finally {
+      setRegeneratingSuggestion(false);
     }
   };
 
@@ -436,7 +483,47 @@ export function PostEditor({ username }: PostEditorProps) {
             <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                 ✨ Post Suggestion
+                {suggestionPersona && (
+                  <span className="text-sm font-normal px-2 py-0.5 bg-blue-900/50 text-blue-300 rounded">
+                    {personas.find(p => p.id === suggestionPersona)?.icon} {personas.find(p => p.id === suggestionPersona)?.name}
+                  </span>
+                )}
               </h3>
+
+              {/* Persona Selector for Suggestion */}
+              {personas.length > 0 && (
+                <div className="mb-4 p-3 bg-blue-900/20 rounded-lg border border-blue-700/30">
+                  <span className="text-blue-300 text-sm block mb-2">
+                    Choose Your Voice:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {personas.map((persona) => (
+                      <button
+                        key={persona.id}
+                        onClick={() => handleSuggestionPersona(
+                          suggestionPersona === persona.id ? null : persona.id
+                        )}
+                        disabled={regeneratingSuggestion || polishing !== null}
+                        className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
+                          suggestionPersona === persona.id
+                            ? "bg-blue-600 text-white ring-2 ring-blue-400"
+                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                        }`}
+                      >
+                        <span>{persona.icon}</span>
+                        <span>{persona.name}</span>
+                        {persona.risk_level === "medium" && (
+                          <span className="text-yellow-400 text-xs">⚡</span>
+                        )}
+                        {regeneratingSuggestion && suggestionPersona === persona.id && (
+                          <span className="text-xs">⏳</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
                 <p className="text-white whitespace-pre-wrap">
                   {suggestion.suggested_content}
@@ -555,19 +642,61 @@ export function PostEditor({ username }: PostEditorProps) {
           )}
 
           {/* AI Personalized Post (for reply/quote only) */}
-          {postType !== "original" && (fetchingPersonalized || personalizedPost) && (
+          {postType !== "original" && (fetchingPersonalized || personalizedPost || targetPostContext) && (
             <div className="bg-gray-800 rounded-xl p-4 border-2 border-purple-500">
               <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
                 🤖 AI Personalized Post
-                <span className="text-sm font-normal text-purple-400">
-                  (Auto-generated in {username}&apos;s style)
-                </span>
+                {personalizedPost?.persona && (
+                  <span className="text-sm font-normal px-2 py-0.5 bg-purple-900/50 text-purple-300 rounded">
+                    {personalizedPost.persona.icon} {personalizedPost.persona.name}
+                  </span>
+                )}
               </h3>
+
+              {/* Persona Selector - Always visible when target post is loaded */}
+              {personas.length > 0 && (
+                <div className="mb-4 p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
+                  <span className="text-purple-300 text-sm block mb-2">
+                    Choose Your Voice:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {personas.map((persona) => (
+                      <button
+                        key={persona.id}
+                        onClick={() => setSelectedPersona(
+                          selectedPersona === persona.id ? null : persona.id
+                        )}
+                        disabled={fetchingPersonalized}
+                        className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
+                          selectedPersona === persona.id
+                            ? "bg-purple-600 text-white ring-2 ring-purple-400"
+                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                        }`}
+                      >
+                        <span>{persona.icon}</span>
+                        <span>{persona.name}</span>
+                        {persona.risk_level === "medium" && (
+                          <span className="text-yellow-400 text-xs">⚡</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedPersona && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      {personas.find(p => p.id === selectedPersona)?.description}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {fetchingPersonalized ? (
                 <div className="flex flex-col items-center justify-center py-8">
                   <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-                  <p className="text-gray-400">AI is generating personalized post...</p>
+                  <p className="text-gray-400">
+                    {selectedPersona
+                      ? `Generating ${selectedPersona} response...`
+                      : "AI is generating personalized post..."}
+                  </p>
                   <p className="text-gray-500 text-sm mt-1">Please wait</p>
                 </div>
               ) : personalizedPost && (
@@ -581,6 +710,31 @@ export function PostEditor({ username }: PostEditorProps) {
                       {personalizedPost.generated_content.length}/280
                     </div>
                   </div>
+
+                  {/* Persona Expected Impact */}
+                  {personalizedPost.persona && (
+                    <div className="mb-4 p-3 bg-purple-900/30 rounded-lg border border-purple-600/30">
+                      <div className="text-sm text-purple-300 mb-2 font-medium">
+                        📈 Expected Impact ({personalizedPost.persona.name})
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(personalizedPost.persona.pentagon_boost).map(([key, value]) => (
+                          <span
+                            key={key}
+                            className={`text-xs px-2 py-1 rounded ${
+                              value > 0
+                                ? "bg-green-900/50 text-green-400"
+                                : value < 0
+                                  ? "bg-red-900/50 text-red-400"
+                                  : "bg-gray-700 text-gray-400"
+                            }`}
+                          >
+                            {key}: {value > 0 ? "+" : ""}{Math.round(value * 100)}%
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Style Analysis */}
                   <div className="mb-4 p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
