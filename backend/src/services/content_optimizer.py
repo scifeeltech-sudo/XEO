@@ -819,16 +819,12 @@ Return ONLY the Chinese translation, nothing else."""
         post_type: Literal["reply", "quote"],
         language: str = "en",
     ) -> Optional[dict]:
-        """Generate a personalized post based on user's profile and style.
+        """Generate a personalized post based on user's recent posts.
 
-        Analyzes the user's recent posts to understand their:
+        Analyzes the user's recent 5 posts to understand their:
         - Writing style and tone
         - Interests and topics
         - Emoji and hashtag usage patterns
-        - Typical post length and structure
-
-        If user profile is not available, generates a generic engaging post
-        based only on the target post content.
 
         Args:
             username: User's X username to analyze
@@ -838,55 +834,50 @@ Return ONLY the Chinese translation, nothing else."""
             language: Target language for the generated post
 
         Returns:
-            dict with generated_content, user_style_analysis, and confidence score
+            dict with generated_content, style_analysis, and confidence score
         """
         if not self.anthropic_client:
             return None
 
-        # Try to fetch user's profile and recent posts
+        # Fetch user's recent 5 posts for style analysis
         recent_posts = []
-        has_profile = False
-
         try:
-            response = await self.client.get_twitter_profile(username, post_count=10)
+            response = await self.client.get_twitter_profile(username, post_count=5)
             if response.success and response.profile:
-                recent_posts = [t.content for t in response.profile.original_tweets[:10] if t.content]
-                has_profile = bool(recent_posts)
+                recent_posts = [t.content for t in response.profile.original_tweets[:5] if t.content]
         except Exception:
-            pass  # Continue without profile
+            pass
 
         lang_names = {"ko": "Korean", "en": "English", "ja": "Japanese", "zh": "Chinese"}
         target_lang = lang_names.get(language, "English")
 
-        if has_profile:
-            # With profile: analyze style and generate personalized post
-            system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
+        # Build prompt based on whether we have recent posts
+        system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
 
 You are an expert at analyzing writing styles and generating personalized content.
 
 Your task:
-1. Analyze the user's writing style from their recent posts
-2. Generate a {post_type} that perfectly matches their style
+1. Analyze the user's writing style from their recent posts (if available)
+2. Generate a {post_type} that matches their style
 3. Make it engaging and optimized for the X algorithm
 
 Style Analysis Guidelines:
 - Tone: formal vs casual, serious vs humorous
 - Emoji usage: frequency, types, positions
-- Hashtag patterns: frequency, topics
 - Sentence structure: short vs long, simple vs complex
-- Common phrases or expressions
-- Topics they engage with"""
+- Common phrases or expressions"""
 
+        if recent_posts:
             user_prompt = f"""Analyze this user's writing style and generate a personalized {post_type}.
 
 **User's Recent Posts ({username}):**
-{chr(10).join(f'{i+1}. "{post[:200]}"' for i, post in enumerate(recent_posts[:7]))}
+{chr(10).join(f'{i+1}. "{post[:200]}"' for i, post in enumerate(recent_posts))}
 
 **Target Post by @{target_author}:**
 "{target_post_content[:300]}"
 
 **Task:** Generate a {post_type} that:
-1. Perfectly matches {username}'s writing style
+1. Matches {username}'s writing style based on their recent posts
 2. Is a natural response to the target post
 3. Is optimized for X algorithm engagement
 4. Is written in {target_lang}
@@ -900,20 +891,11 @@ Respond in this exact JSON format:
     "topics": ["list", "of", "interests"],
     "writing_pattern": "description of their writing pattern"
   }},
-  "confidence": 0.85,
+  "confidence": 0.8,
   "reasoning": "Brief explanation of why this matches their style"
 }}"""
         else:
-            # Without profile: generate generic engaging post
-            system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
-
-You are an expert at generating engaging X/Twitter content.
-
-Your task:
-1. Generate an engaging {post_type} to the target post
-2. Make it optimized for the X algorithm
-3. Keep it natural and conversational"""
-
+            # No recent posts available - generate generic engaging post
             user_prompt = f"""Generate an engaging {post_type} to this post.
 
 **Target Post by @{target_author}:**
@@ -923,7 +905,6 @@ Your task:
 1. Is a natural, engaging response to the target post
 2. Is optimized for X algorithm engagement
 3. Is written in {target_lang}
-4. Uses appropriate tone for the context
 
 Respond in this exact JSON format:
 {{
@@ -934,8 +915,8 @@ Respond in this exact JSON format:
     "topics": ["topics", "from", "target post"],
     "writing_pattern": "natural and engaging"
   }},
-  "confidence": 0.6,
-  "reasoning": "Generated based on target post context (user profile not available)"
+  "confidence": 0.5,
+  "reasoning": "Generated without user style data - based on target post context only"
 }}"""
 
         try:
@@ -955,7 +936,7 @@ Respond in this exact JSON format:
                     "username": username,
                     "generated_content": result.get("generated_content", ""),
                     "style_analysis": result.get("style_analysis", {}),
-                    "confidence": result.get("confidence", 0.6 if not has_profile else 0.85),
+                    "confidence": result.get("confidence", 0.5 if not recent_posts else 0.8),
                     "reasoning": result.get("reasoning", ""),
                     "post_type": post_type,
                     "target_author": target_author,
