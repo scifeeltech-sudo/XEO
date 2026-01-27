@@ -25,6 +25,33 @@ const LABELS: Record<keyof PentagonScores, string> = {
   longevity: "Longevity",
 };
 
+const COLORS: Record<string, string> = {
+  Engagement: "#4ade80", // green-400
+  Reach: "#60a5fa",      // blue-400
+  Virality: "#c084fc",   // purple-400
+  Quality: "#facc15",    // yellow-400
+  Longevity: "#fb923c",  // orange-400
+};
+
+// Custom tick component for colored labels
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CustomTick = (props: any) => {
+  const { payload, x, y, textAnchor } = props;
+  const color = COLORS[payload?.value] || "#6b7280";
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor={textAnchor}
+      fill={color}
+      fontSize={12}
+      fontWeight={500}
+    >
+      {payload?.value}
+    </text>
+  );
+};
+
 // Memoized tooltip formatter to prevent recreation on each render
 const tooltipFormatter = (value: unknown) => [
   `${typeof value === "number" ? value.toFixed(1) : value}`,
@@ -49,7 +76,7 @@ function RadarChartComponent({ scores, size = 300 }: RadarChartProps) {
         <PolarGrid stroke="#e5e7eb" />
         <PolarAngleAxis
           dataKey="subject"
-          tick={{ fill: "#6b7280", fontSize: 12 }}
+          tick={CustomTick}
         />
         <PolarRadiusAxis
           angle={90}

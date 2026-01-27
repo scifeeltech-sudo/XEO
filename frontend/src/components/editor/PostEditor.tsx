@@ -302,6 +302,43 @@ export function PostEditor({ username }: PostEditorProps) {
     }
   };
 
+  // Polish personalized post
+  const handlePolishPersonalized = async (type: PolishType) => {
+    if (!personalizedPost || polishing) return;
+
+    setPolishing(type);
+    try {
+      const result = await api.polishPost({
+        content: personalizedPost.generated_content,
+        polish_type: type,
+        language: targetLanguage,
+        target_post_content: targetPostContext?.content.text,
+      });
+      setPersonalizedPost({
+        ...personalizedPost,
+        generated_content: result.polished_content,
+      });
+    } catch (error) {
+      console.error("Failed to polish personalized:", error);
+    } finally {
+      setPolishing(null);
+    }
+  };
+
+  // Unified polish handler - applies to both suggestion and personalized post
+  const handlePolishAll = async (type: PolishType) => {
+    if (polishing) return;
+
+    // Polish suggestion if exists
+    if (suggestion) {
+      await handlePolishSuggestion(type);
+    }
+    // Polish personalized post if exists
+    if (personalizedPost) {
+      await handlePolishPersonalized(type);
+    }
+  };
+
   // Regenerate suggestion with persona styling
   const handleSuggestionPersona = async (personaId: PersonaType | null) => {
     if (!suggestion || regeneratingSuggestion) return;
@@ -366,7 +403,7 @@ export function PostEditor({ username }: PostEditorProps) {
             </button>
           </div>
 
-          {/* Target URL (for reply/quote) - URL input only */}
+          {/* Target URL (for reply/quote) - URL input + preview */}
           {postType !== "original" && (
             <div className="space-y-3">
               <input
@@ -376,6 +413,47 @@ export function PostEditor({ username }: PostEditorProps) {
                 placeholder="Target post URL (https://x.com/...)"
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+
+              {/* Fetching state */}
+              {fetchingTarget && (
+                <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
+                  <div className="flex items-center gap-3 text-gray-400">
+                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div>
+                      <span className="text-white">Fetching target post...</span>
+                      <p className="text-sm text-gray-500">Please wait</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Target Preview - below URL input */}
+              {targetPostContext && !fetchingTarget && (
+                <div className="p-4 bg-gray-800 border border-blue-500/50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-semibold text-white">
+                          @{targetPostContext.author.username}
+                        </span>
+                        {targetPostContext.author.verified && (
+                          <span className="text-blue-400">✓</span>
+                        )}
+                      </div>
+                      <p className="text-gray-300 mb-3 text-sm">
+                        {targetPostContext.content.text.length > 100
+                          ? targetPostContext.content.text.slice(0, 100) + "..."
+                          : targetPostContext.content.text}
+                      </p>
+                      <div className="flex gap-3 text-xs text-gray-500">
+                        <span>❤️ {targetPostContext.metrics.likes.toLocaleString()}</span>
+                        <span>🔁 {targetPostContext.metrics.reposts.toLocaleString()}</span>
+                        <span>💬 {targetPostContext.metrics.replies.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Error message */}
               {targetFetchError && !fetchingTarget && (
@@ -420,7 +498,7 @@ export function PostEditor({ username }: PostEditorProps) {
         </div>
 
         {/* Analysis Results - Part of Row 1 */}
-        <div className="space-y-6">
+        <div className="flex flex-col justify-between h-full">
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -430,115 +508,21 @@ export function PostEditor({ username }: PostEditorProps) {
         )}
 
         {analysis && !loading && (
-          <>
-            {/* Radar Chart */}
-            <div className="bg-gray-800 rounded-xl p-4">
-              <h3 className="text-lg font-semibold text-white mb-4">
-                Predicted Score
-              </h3>
-              <RadarChart scores={analysis.scores} size={280} />
-              <div className="text-center mt-2">
-                <span className="text-2xl font-bold text-blue-400">
-                  {(
-                    Object.values(analysis.scores).reduce((a, b) => a + b, 0) /
-                    5
-                  ).toFixed(0)}
-                </span>
-                <span className="text-gray-400 ml-2">/ 100</span>
-              </div>
+          <div className="bg-gray-800 rounded-xl p-4 h-full flex flex-col justify-center mt-14">
+            <h3 className="text-lg font-semibold text-white mb-2 text-center">
+              Predicted Score
+            </h3>
+            <RadarChart scores={analysis.scores} size={240} />
+            <div className="text-center mt-2">
+              <span className="text-2xl font-bold text-blue-400">
+                {(
+                  Object.values(analysis.scores).reduce((a, b) => a + b, 0) /
+                  5
+                ).toFixed(0)}
+              </span>
+              <span className="text-gray-400 ml-2">/ 100</span>
             </div>
-
-            {/* Quick Tips with Checkboxes */}
-            {analysis.quick_tips.length > 0 && (
-              <div className="bg-gray-800 rounded-xl p-4">
-                <h3 className="text-lg font-semibold text-white mb-4">
-                  💡 Quick Tips{" "}
-                  <span className="text-sm font-normal text-gray-400">
-                    (Select up to 3)
-                  </span>
-                </h3>
-                <ul className="space-y-3">
-                  {analysis.quick_tips.map((tip) => (
-                    <li key={tip.tip_id} className="flex items-start gap-3">
-                      {tip.selectable ? (
-                        <input
-                          type="checkbox"
-                          checked={selectedTips.includes(tip.tip_id)}
-                          onChange={() => handleTipToggle(tip.tip_id)}
-                          disabled={
-                            !selectedTips.includes(tip.tip_id) &&
-                            selectedTips.length >= 3
-                          }
-                          className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                      ) : (
-                        <span className="mt-1 text-gray-500">💡</span>
-                      )}
-                      <div className="flex-1">
-                        <span className="text-gray-300">{tip.description}</span>
-                        <span
-                          className={`ml-2 text-sm ${
-                            tip.target_score === "engagement"
-                              ? "text-green-400"
-                              : tip.target_score === "reach"
-                              ? "text-blue-400"
-                              : "text-yellow-400"
-                          }`}
-                        >
-                          {tip.impact} {tip.target_score}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                {selectedTips.length > 0 && (
-                  <button
-                    onClick={handleApplyTips}
-                    disabled={applyingTips}
-                    className="w-full mt-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-medium rounded-lg transition-colors"
-                  >
-                    {applyingTips ? "Applying..." : `✨ Apply ${selectedTips.length} Tips`}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Context (for reply/quote) */}
-            {analysis.context && (
-              <div className="bg-gray-800 rounded-xl p-4">
-                <h3 className="text-lg font-semibold text-white mb-4">
-                  Context Analysis
-                </h3>
-                <div className="space-y-3">
-                  <div className="p-3 bg-gray-700/50 rounded-lg">
-                    <div className="text-sm text-gray-400">Target Post</div>
-                    <div className="text-white">
-                      @{analysis.context.target_author}
-                    </div>
-                    <div className="text-gray-300 text-sm mt-1">
-                      {analysis.context.target_post_content.slice(0, 100)}...
-                    </div>
-                  </div>
-                  {Object.entries(analysis.context.context_adjustments).map(
-                    ([key, value]) => (
-                      <div key={key} className="flex justify-between text-sm">
-                        <span className="text-gray-400">{key}</span>
-                        <span
-                          className={
-                            value.startsWith("+")
-                              ? "text-green-400"
-                              : "text-red-400"
-                          }
-                        >
-                          {value}
-                        </span>
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
-          </>
+          </div>
         )}
 
         {!analysis && !loading && (
@@ -562,81 +546,61 @@ export function PostEditor({ username }: PostEditorProps) {
       </div>
       {/* End of Row 1 */}
 
-      {/* Row 2: Target Post Preview (full width) */}
-      {postType !== "original" && (
-        <div className="w-full">
-          {/* Fetching state */}
-          {fetchingTarget && (
-            <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-              <div className="flex items-center gap-3 text-gray-400">
-                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <div>
-                  <span className="text-white">Fetching target post...</span>
-                  <p className="text-sm text-gray-500">Please wait</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Target Preview */}
-          {targetPostContext && !fetchingTarget && (
-            <div className="p-4 bg-gray-800 border border-blue-500/50 rounded-lg">
-              <div className="flex items-start gap-3">
+      {/* Row 2: Quick Tips (full width) */}
+      {analysis && !loading && analysis.quick_tips.length > 0 && (
+        <div className="bg-gray-800 rounded-xl p-4">
+          <h3 className="text-lg font-semibold text-white mb-4">
+            💡 Quick Tips{" "}
+            <span className="text-sm font-normal text-gray-400">
+              (Select up to 3)
+            </span>
+          </h3>
+          <ul className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {analysis.quick_tips.map((tip) => (
+              <li key={tip.tip_id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-700/30">
+                {tip.selectable ? (
+                  <input
+                    type="checkbox"
+                    checked={selectedTips.includes(tip.tip_id)}
+                    onChange={() => handleTipToggle(tip.tip_id)}
+                    disabled={
+                      !selectedTips.includes(tip.tip_id) &&
+                      selectedTips.length >= 3
+                    }
+                    className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                ) : (
+                  <span className="mt-1 text-gray-500">💡</span>
+                )}
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-semibold text-white">
-                      @{targetPostContext.author.username}
-                    </span>
-                    {targetPostContext.author.verified && (
-                      <span className="text-blue-400">✓</span>
-                    )}
-                  </div>
-                  {/* Content text - responsive */}
-                  <p className="text-gray-300 mb-3">
-                    {/* Mobile: 50 chars */}
-                    <span className="lg:hidden">
-                      {targetPostContext.content.text.length > 50
-                        ? targetPostContext.content.text.slice(0, 50) + "..."
-                        : targetPostContext.content.text}
-                    </span>
-                    {/* Desktop: 200 chars */}
-                    <span className="hidden lg:inline">
-                      {targetPostContext.content.text.length > 200
-                        ? targetPostContext.content.text.slice(0, 200) + "..."
-                        : targetPostContext.content.text}
-                    </span>
-                  </p>
-                  <div className="flex gap-4 text-sm text-gray-500">
-                    <span>❤️ {targetPostContext.metrics.likes.toLocaleString()}</span>
-                    <span>🔁 {targetPostContext.metrics.reposts.toLocaleString()}</span>
-                    <span>💬 {targetPostContext.metrics.replies.toLocaleString()}</span>
-                    <span>👁 {targetPostContext.metrics.views.toLocaleString()}</span>
-                  </div>
-                  {/* Opportunity Score - desktop only */}
-                  <div className="hidden lg:block mt-3 pt-3 border-t border-gray-700">
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400 text-sm">Opportunity Score:</span>
-                      <span className={`font-bold ${
-                        targetPostContext.opportunity_score.overall >= 70 ? "text-green-400" :
-                        targetPostContext.opportunity_score.overall >= 40 ? "text-yellow-400" :
-                        "text-red-400"
-                      }`}>
-                        {targetPostContext.opportunity_score.overall}/100
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        targetPostContext.analysis.freshness === "very_fresh" ? "bg-green-900/50 text-green-400" :
-                        targetPostContext.analysis.freshness === "fresh" ? "bg-blue-900/50 text-blue-400" :
-                        "bg-gray-700 text-gray-400"
-                      }`}>
-                        {targetPostContext.analysis.freshness === "very_fresh" ? "🔥 Very Fresh" :
-                         targetPostContext.analysis.freshness === "fresh" ? "✨ Fresh" :
-                         targetPostContext.analysis.freshness === "moderate" ? "Moderate" : "Old"}
-                      </span>
-                    </div>
-                  </div>
+                  <span className="text-gray-300 text-sm">{tip.description}</span>
+                  <span
+                    className={`ml-2 text-xs font-medium ${
+                      tip.target_score === "engagement"
+                        ? "text-green-400"
+                        : tip.target_score === "reach"
+                        ? "text-blue-400"
+                        : tip.target_score === "virality"
+                        ? "text-purple-400"
+                        : tip.target_score === "quality"
+                        ? "text-yellow-400"
+                        : "text-orange-400"
+                    }`}
+                  >
+                    {tip.impact} {tip.target_score}
+                  </span>
                 </div>
-              </div>
-            </div>
+              </li>
+            ))}
+          </ul>
+          {selectedTips.length > 0 && (
+            <button
+              onClick={handleApplyTips}
+              disabled={applyingTips}
+              className="w-full mt-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-medium rounded-lg transition-colors"
+            >
+              {applyingTips ? "Applying..." : `✨ Apply ${selectedTips.length} Tips`}
+            </button>
           )}
         </div>
       )}
@@ -644,44 +608,125 @@ export function PostEditor({ username }: PostEditorProps) {
       {/* Row 3: Suggestions (full width) */}
       {(suggestion || (postType !== "original" && (fetchingPersonalized || personalizedPost || targetPostContext))) && (
         <div className="w-full">
-          {/* Unified Persona Selector */}
-          {personas.length > 0 && (
-            <div className="mb-4 p-3 bg-gray-700/50 rounded-lg">
-              <span className="text-gray-300 text-sm block mb-2">
-                Choose Your Voice:
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {personas.map((persona) => (
-                  <button
-                    key={persona.id}
-                    onClick={() => {
-                      const newPersona = selectedPersona === persona.id ? null : persona.id;
-                      setSelectedPersona(newPersona);
-                      // Also trigger suggestion regeneration if applicable
-                      if (suggestion && newPersona) {
-                        handleSuggestionPersona(newPersona);
-                      }
-                    }}
-                    disabled={regeneratingSuggestion || polishing !== null || fetchingPersonalized}
-                    className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
-                      selectedPersona === persona.id
-                        ? "bg-blue-600 text-white ring-2 ring-blue-400"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    }`}
-                  >
-                    <span>{persona.icon}</span>
-                    <span className="hidden sm:inline">{persona.name}</span>
-                    {persona.risk_level === "medium" && (
-                      <span className="text-yellow-400 text-xs">⚡</span>
-                    )}
-                    {(regeneratingSuggestion || fetchingPersonalized) && selectedPersona === persona.id && (
-                      <span className="text-xs">⏳</span>
-                    )}
-                  </button>
-                ))}
-              </div>
+          {/* Unified Controls: Persona Selector + Polish Buttons (side by side) */}
+          <div className="mb-4 p-4 bg-gray-700/50 rounded-lg">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Left: Persona Selector */}
+              {personas.length > 0 && (
+                <div>
+                  <span className="text-gray-300 text-sm block mb-2">
+                    Choose Your Voice:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {personas.map((persona) => (
+                      <button
+                        key={persona.id}
+                        onClick={() => {
+                          const newPersona = selectedPersona === persona.id ? null : persona.id;
+                          setSelectedPersona(newPersona);
+                          if (suggestion && newPersona) {
+                            handleSuggestionPersona(newPersona);
+                          }
+                        }}
+                        disabled={regeneratingSuggestion || polishing !== null || fetchingPersonalized}
+                        className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
+                          selectedPersona === persona.id
+                            ? "bg-blue-600 text-white ring-2 ring-blue-400"
+                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                        }`}
+                      >
+                        <span>{persona.icon}</span>
+                        <span className="hidden sm:inline">{persona.name}</span>
+                        {persona.risk_level === "medium" && (
+                          <span className="text-yellow-400 text-xs">⚡</span>
+                        )}
+                        {(regeneratingSuggestion || fetchingPersonalized) && selectedPersona === persona.id && (
+                          <span className="text-xs">⏳</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Right: Polish Buttons - applies to both suggestion and personalized */}
+              {(suggestion || personalizedPost) && (
+                <div>
+                  <span className="text-gray-300 text-sm block mb-2">
+                    Polish with Claude AI:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handlePolishAll("grammar")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "grammar"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      ✍️ Keep Tone {polishing === "grammar" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishAll("twitter")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "twitter"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🐦 Twitter {polishing === "twitter" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishAll("280char")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "280char"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      📏 280 {polishing === "280char" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishAll("translate_en")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "translate_en"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🇺🇸 {polishing === "translate_en" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishAll("translate_ko")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "translate_ko"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🇰🇷 {polishing === "translate_ko" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishAll("translate_zh")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "translate_zh"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🇨🇳 {polishing === "translate_zh" && "⏳"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Mobile: Tab switcher */}
           {postType !== "original" && suggestion && (
@@ -729,86 +774,6 @@ export function PostEditor({ username }: PostEditorProps) {
                   </p>
                   <div className="text-xs text-gray-500 mt-2">
                     {suggestion.suggested_content.length}/280
-                  </div>
-                </div>
-
-                {/* Polish Buttons */}
-                <div className="mb-4">
-                  <span className="text-gray-400 text-sm block mb-2">
-                    Polish with Claude AI:
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => handlePolishSuggestion("grammar")}
-                      disabled={polishing !== null}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        polishing === "grammar"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      } disabled:opacity-50`}
-                    >
-                      ✍️ Keep Tone {polishing === "grammar" && "⏳"}
-                    </button>
-                    <button
-                      onClick={() => handlePolishSuggestion("twitter")}
-                      disabled={polishing !== null}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        polishing === "twitter"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      } disabled:opacity-50`}
-                    >
-                      🐦 Twitter Style {polishing === "twitter" && "⏳"}
-                    </button>
-                    <button
-                      onClick={() => handlePolishSuggestion("280char")}
-                      disabled={polishing !== null}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        polishing === "280char"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      } disabled:opacity-50`}
-                    >
-                      📏 Fit 280 chars {polishing === "280char" && "⏳"}
-                    </button>
-                  </div>
-                  <span className="text-gray-400 text-sm block mb-2 mt-3">
-                    Translate:
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => handlePolishSuggestion("translate_en")}
-                      disabled={polishing !== null}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        polishing === "translate_en"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      } disabled:opacity-50`}
-                    >
-                      🇺🇸 English {polishing === "translate_en" && "⏳"}
-                    </button>
-                    <button
-                      onClick={() => handlePolishSuggestion("translate_ko")}
-                      disabled={polishing !== null}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        polishing === "translate_ko"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      } disabled:opacity-50`}
-                    >
-                      🇰🇷 한국어 {polishing === "translate_ko" && "⏳"}
-                    </button>
-                    <button
-                      onClick={() => handlePolishSuggestion("translate_zh")}
-                      disabled={polishing !== null}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        polishing === "translate_zh"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      } disabled:opacity-50`}
-                    >
-                      🇨🇳 中文 {polishing === "translate_zh" && "⏳"}
-                    </button>
                   </div>
                 </div>
 
