@@ -84,38 +84,6 @@ class PostAnalysisResponse(BaseModel):
     context: Optional[ContextResponse] = None
 
 
-@router.get("/test-db")
-async def test_db():
-    """Test Supabase connection."""
-    import os
-    try:
-        # Direct insert test
-        client = cache.client
-        result = client.table("user_activities").insert(
-            {
-                "user_handle": "direct_test",
-                "action_type": "test",
-                "target_handle": "test_target",
-                "target_url": "https://x.com/test/status/123",
-                "post_content": "Direct DB test",
-                "scores": {"reach": 50.0},
-                "quick_tips": [],
-            }
-        ).execute()
-        return {
-            "success": True,
-            "data": result.data,
-            "supabase_url": os.getenv("SUPABASE_URL", "NOT SET")[:50] + "...",
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "supabase_url": os.getenv("SUPABASE_URL", "NOT SET"),
-        }
-
-
 @router.post("/analyze", response_model=PostAnalysisResponse)
 async def analyze_post(request: PostAnalyzeRequest, background_tasks: BackgroundTasks):
     """Analyze a post and predict scores."""
