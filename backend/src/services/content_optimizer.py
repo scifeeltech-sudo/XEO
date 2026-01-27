@@ -429,6 +429,9 @@ Return ONLY the optimized content:"""
         if tweet.views_count > 1000000:
             tips.append("🎯 Large account post - high exposure expected")
 
+        # Generate interpretation for abstract/complex posts
+        interpretation = await self._generate_interpretation(tweet.content)
+
         return {
             "post_id": tweet.tweet_id,
             "post_url": tweet.full_url,
@@ -467,7 +470,37 @@ Return ONLY the optimized content:"""
                 },
             },
             "tips": tips,
+            "interpretation": interpretation,
         }
+
+    async def _generate_interpretation(self, content: str) -> Optional[str]:
+        """Generate a simple interpretation of abstract/complex posts using Claude."""
+        if not self.anthropic_client:
+            return None
+
+        # Skip interpretation for very short or simple posts
+        if len(content) < 20:
+            return None
+
+        try:
+            message = self.anthropic_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=150,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"""Analyze this Twitter/X post and explain its hidden meaning or main point in 1-2 simple sentences. If the post is straightforward, just summarize the key message. Keep it concise and easy to understand.
+
+Post: "{content}"
+
+Respond in the same language as the post. Just give the interpretation directly without any prefix like "This post..." or "The author..."."""
+                    }
+                ],
+            )
+            return message.content[0].text.strip()
+        except Exception as e:
+            print(f"Interpretation generation failed: {e}")
+            return None
 
     async def optimize(
         self,

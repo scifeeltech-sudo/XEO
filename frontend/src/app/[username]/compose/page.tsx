@@ -1,11 +1,11 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { PostEditor } from "@/components/editor/PostEditor";
 
 export default function ComposePage() {
   const params = useParams();
+  const router = useRouter();
   const username = params.username as string;
 
   return (
@@ -13,12 +13,12 @@ export default function ComposePage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Link
-            href={`/${username}`}
+          <button
+            onClick={() => router.back()}
             className="text-gray-400 hover:text-white transition-colors"
           >
-            ← Back to Profile
-          </Link>
+            ←
+          </button>
           <h1 className="text-2xl font-bold text-white">Compose Post</h1>
           <span className="text-gray-500">@{username}</span>
         </div>

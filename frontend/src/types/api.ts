@@ -150,6 +150,7 @@ export interface TargetPostContext {
     factors: Record<string, number>;
   };
   tips: string[];
+  interpretation?: string;
 }
 
 // Personalized Post types

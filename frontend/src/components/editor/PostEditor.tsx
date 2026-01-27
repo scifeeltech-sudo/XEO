@@ -442,8 +442,8 @@ export function PostEditor({ username }: PostEditorProps) {
                         )}
                       </div>
                       <p className="text-gray-300 mb-3 text-sm">
-                        {targetPostContext.content.text.length > 100
-                          ? targetPostContext.content.text.slice(0, 100) + "..."
+                        {targetPostContext.content.text.length > 280
+                          ? targetPostContext.content.text.slice(0, 280) + "..."
                           : targetPostContext.content.text}
                       </p>
                       <div className="flex gap-3 text-xs text-gray-500">
@@ -451,6 +451,15 @@ export function PostEditor({ username }: PostEditorProps) {
                         <span>🔁 {targetPostContext.metrics.reposts.toLocaleString()}</span>
                         <span>💬 {targetPostContext.metrics.replies.toLocaleString()}</span>
                       </div>
+                      {/* Hidden meaning / interpretation */}
+                      {targetPostContext.interpretation && (
+                        <div className="mt-3 pt-3 border-t border-gray-700">
+                          <div className="text-xs text-yellow-400 font-medium mb-1">💡 What this post means:</div>
+                          <p className="text-gray-400 text-xs">
+                            {targetPostContext.interpretation}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

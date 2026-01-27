@@ -272,6 +272,7 @@ class PostContextResponse(BaseModel):
     analysis: PostContextAnalysis
     opportunity_score: OpportunityScore
     tips: list[str]
+    interpretation: Optional[str] = None
 
 
 @router.get("/context", response_model=PostContextResponse)
