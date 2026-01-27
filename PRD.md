@@ -75,11 +75,20 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 
 스코어가 0으로 붕괴되는 것을 방지하기 위한 최소값 설정:
 
+**포스트 스코어 (weighted_scorer.py):**
 | 항목 | 최소값 | 설명 |
 |------|--------|------|
 | base_engagement | 3% | 기본 참여율 최소값 |
 | p_favorite, p_reply | 0.01 | Engagement 팩터 최소값 |
 | p_repost, p_quote, p_share | 0.005 | Virality 팩터 최소값 |
+
+**프로필 스코어 (profile_analyzer.py):** ✅ v1.11
+| 항목 | 최소값 | 설명 |
+|------|--------|------|
+| effective_engagement | 3% | 참여율 계산 최소값 |
+| Reach 스코어 | 10점 | 도달률 최소 점수 |
+| Engagement 스코어 | 5점 | 참여도 최소 점수 |
+| Virality 스코어 | 5점 | 바이럴성 최소 점수 |
 
 #### 출력
 - 5각형 레이더 차트로 시각화된 프로필 점수
@@ -766,6 +775,7 @@ Promise.all([polishSuggestion(), polishPersonalized()])
 | 저장소 | sessionStorage | 브라우저 세션 동안 유지 |
 | 용도 | 프로필 분석 결과 캐싱 | compose 페이지에서 돌아올 때 즉시 로드 |
 | 효과 | API 호출 제거 | 페이지 전환 시 즉각적인 응답 |
+| 새로고침 | 🔄 버튼 | 캐시 무시하고 API에서 최신 데이터 가져오기 |
 
 #### Lazy Loading (RadarChart)
 
@@ -1720,7 +1730,7 @@ SCORE_WEIGHTS = {
 
 ---
 
-*문서 버전: 1.10*
+*문서 버전: 1.11*
 *최종 수정: 2026-01-28*
 *변경사항:
 - v1.2: 포스팅 제안 기능 추가 (빠른 팁 선택 → 최적화된 포스팅 자동 생성)
@@ -1731,4 +1741,5 @@ SCORE_WEIGHTS = {
 - v1.7: 실제 구현 상태 동기화 - 프론트엔드 구조(src/ 디렉토리), 번역 기능(translate_en/ko/zh), DB 스키마 업데이트, API 클라이언트 메서드 목록
 - v1.8: 코드베이스 완전 동기화 - 프로필 분석 10개 포스트로 변경, 스코어 계산 기준 상세화, 컨텍스트 부스트 임계값(100K views, 60분, 1000 replies), Freshness 분류 기준, Admin API 문서화, 언어 감지 캐싱, asyncio.gather 병렬 처리, DB 스키마 실제 구현 상태 반영
 - v1.9: UI/UX 고도화 - 페르소나 시스템(4종), AI 대상 포스트 해석, 개선된 점수 시각화(초록색), PostEditor 3행 레이아웃, 병렬 Polish API, 프로필 캐싱(sessionStorage), /personas API 엔드포인트 추가
-- v1.10: 스코어 안정성 개선 - 스코어 최소 임계값 설정(engagement 3%, virality 0.5%), 키워드 기반 팁 타겟 스코어 감지(virality/reach/quality/longevity 키워드 매핑)*
+- v1.10: 스코어 안정성 개선 - 스코어 최소 임계값 설정(engagement 3%, virality 0.5%), 키워드 기반 팁 타겟 스코어 감지(virality/reach/quality/longevity 키워드 매핑)
+- v1.11: 프로필 분석 개선 - 프로필 스코어 최소값(Reach 10, Engagement/Virality 5), 새로고침 버튼(캐시 무시하고 최신 데이터 가져오기)*
