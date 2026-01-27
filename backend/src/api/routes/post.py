@@ -136,26 +136,28 @@ async def analyze_post(request: PostAnalyzeRequest, background_tasks: Background
                 recommendations=result.context.recommendations,
             )
 
-        # Log user activity in background
+        # Log user activity (direct call for debugging)
         # Get target_handle from context, or extract from URL as fallback
         target_handle = (
             result.context.target_post.username
             if result.context
             else extract_username_from_url(request.target_post_url)
         )
-        background_tasks.add_task(
-            cache.log_user_activity,
-            user_handle=request.username,
-            action_type=request.post_type,
-            target_handle=target_handle,
-            target_url=request.target_post_url,
-            post_content=request.content,
-            scores=result.scores.to_dict(),
-            quick_tips=[
-                {"tip_id": t.tip_id, "description": t.description, "impact": t.impact}
-                for t in result.quick_tips
-            ],
-        )
+        try:
+            await cache.log_user_activity(
+                user_handle=request.username,
+                action_type=request.post_type,
+                target_handle=target_handle,
+                target_url=request.target_post_url,
+                post_content=request.content,
+                scores=result.scores.to_dict(),
+                quick_tips=[
+                    {"tip_id": t.tip_id, "description": t.description, "impact": t.impact}
+                    for t in result.quick_tips
+                ],
+            )
+        except Exception as log_error:
+            print(f"Failed to log activity: {log_error}")
 
         return response
     except Exception as e:
