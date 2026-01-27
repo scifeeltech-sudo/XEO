@@ -53,8 +53,12 @@ export function PostEditor({ username }: PostEditorProps) {
   // Persona state
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersona, setSelectedPersona] = useState<PersonaType | null>(null);
-  const [suggestionPersona, setSuggestionPersona] = useState<PersonaType | null>(null);
   const [regeneratingSuggestion, setRegeneratingSuggestion] = useState(false);
+
+  // Mobile UI state
+  const [activeTab, setActiveTab] = useState<"suggestion" | "personalized">("personalized");
+  const [showPolishMenu, setShowPolishMenu] = useState(false);
+  const [showTranslateMenu, setShowTranslateMenu] = useState(false);
 
   const targetUrlDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -73,7 +77,6 @@ export function PostEditor({ username }: PostEditorProps) {
     setTargetFetchError(null);
     setPersonalizedPost(null);
     setSelectedPersona(null);
-    setSuggestionPersona(null);
   }, []);
 
   const analyzePost = useCallback(
@@ -303,7 +306,7 @@ export function PostEditor({ username }: PostEditorProps) {
   const handleSuggestionPersona = async (personaId: PersonaType | null) => {
     if (!suggestion || regeneratingSuggestion) return;
 
-    setSuggestionPersona(personaId);
+    // selectedPersona is now unified - we update it and regenerate
     if (!personaId) return; // Just deselecting
 
     setRegeneratingSuggestion(true);
@@ -332,456 +335,92 @@ export function PostEditor({ username }: PostEditorProps) {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      {/* Editor */}
-      <div className="space-y-6">
-        {/* Post Type Selector + Reset Button */}
-        <div className="flex justify-between items-center">
-          <div className="flex gap-2">
-            {(["original", "reply", "quote"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setPostType(type)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  postType === type
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                }`}
-              >
-                {type === "original" ? "My Post" : type === "reply" ? "Reply" : "Quote"}
-              </button>
-            ))}
+    <div className="flex flex-col gap-6">
+      {/* Row 1: Input + Analysis (2-col on desktop) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Input Section */}
+        <div className="space-y-6">
+          {/* Post Type Selector + Reset Button */}
+          <div className="flex justify-between items-center">
+            <div className="flex gap-2">
+              {(["original", "reply", "quote"] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setPostType(type)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    postType === type
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  {type === "original" ? "My Post" : type === "reply" ? "Reply" : "Quote"}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleReset}
+              className="px-4 py-2 bg-yellow-600/70 hover:bg-yellow-600 text-yellow-100 font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              <span>🔄</span>
+              <span>Reset</span>
+            </button>
           </div>
+
+          {/* Target URL (for reply/quote) - URL input only */}
+          {postType !== "original" && (
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={targetUrl}
+                onChange={(e) => setTargetUrl(e.target.value)}
+                placeholder="Target post URL (https://x.com/...)"
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {/* Error message */}
+              {targetFetchError && !fetchingTarget && (
+                <div className="p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                  <p className="text-yellow-400 text-sm">⚠️ {targetFetchError}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Content Editor */}
+          <div className="relative">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Write your post content..."
+              className="w-full h-48 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+            <div className="absolute bottom-3 right-3 text-gray-500 text-sm">
+              {content.length}/280
+            </div>
+          </div>
+
+          {/* Analyze Button */}
           <button
-            onClick={handleReset}
-            className="px-4 py-2 bg-yellow-600/70 hover:bg-yellow-600 text-yellow-100 font-medium rounded-lg transition-colors flex items-center gap-2"
+            onClick={() => analyzePost(content)}
+            disabled={!content.trim() || loading}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
           >
-            <span>🔄</span>
-            <span>Reset</span>
+            {loading ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Analyzing... Please wait</span>
+              </>
+            ) : (
+              <>
+                <span>🔍</span>
+                <span>Analyze</span>
+              </>
+            )}
           </button>
         </div>
 
-        {/* Target URL (for reply/quote) */}
-        {postType !== "original" && (
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={targetUrl}
-              onChange={(e) => setTargetUrl(e.target.value)}
-              placeholder="Target post URL (https://x.com/...)"
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-
-            {/* Target Post Preview */}
-            {fetchingTarget && (
-              <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
-                <div className="flex items-center gap-3 text-gray-400">
-                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  <div>
-                    <span className="text-white">Fetching target post...</span>
-                    <p className="text-sm text-gray-500">Please wait</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {targetPostContext && !fetchingTarget && (
-              <div className="p-4 bg-gray-800 border border-blue-500/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-semibold text-white">
-                        @{targetPostContext.author.username}
-                      </span>
-                      {targetPostContext.author.verified && (
-                        <span className="text-blue-400">✓</span>
-                      )}
-                    </div>
-                    <p className="text-gray-300 mb-3">
-                      {targetPostContext.content.text.length > 200
-                        ? targetPostContext.content.text.slice(0, 200) + "..."
-                        : targetPostContext.content.text}
-                    </p>
-                    <div className="flex gap-4 text-sm text-gray-500">
-                      <span>❤️ {targetPostContext.metrics.likes.toLocaleString()}</span>
-                      <span>🔁 {targetPostContext.metrics.reposts.toLocaleString()}</span>
-                      <span>💬 {targetPostContext.metrics.replies.toLocaleString()}</span>
-                      <span>👁 {targetPostContext.metrics.views.toLocaleString()}</span>
-                    </div>
-                    {/* Opportunity Score */}
-                    <div className="mt-3 pt-3 border-t border-gray-700">
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-400 text-sm">Opportunity Score:</span>
-                        <span className={`font-bold ${
-                          targetPostContext.opportunity_score.overall >= 70 ? "text-green-400" :
-                          targetPostContext.opportunity_score.overall >= 40 ? "text-yellow-400" :
-                          "text-red-400"
-                        }`}>
-                          {targetPostContext.opportunity_score.overall}/100
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          targetPostContext.analysis.freshness === "very_fresh" ? "bg-green-900/50 text-green-400" :
-                          targetPostContext.analysis.freshness === "fresh" ? "bg-blue-900/50 text-blue-400" :
-                          "bg-gray-700 text-gray-400"
-                        }`}>
-                          {targetPostContext.analysis.freshness === "very_fresh" ? "🔥 Very Fresh" :
-                           targetPostContext.analysis.freshness === "fresh" ? "✨ Fresh" :
-                           targetPostContext.analysis.freshness === "moderate" ? "Moderate" : "Old"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Error message */}
-            {targetFetchError && !fetchingTarget && (
-              <div className="p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-                <p className="text-yellow-400 text-sm">⚠️ {targetFetchError}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Content Editor */}
-        <div className="relative">
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Write your post content..."
-            className="w-full h-48 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-          />
-          <div className="absolute bottom-3 right-3 text-gray-500 text-sm">
-            {content.length}/280
-          </div>
-        </div>
-
-        {/* Analyze Button */}
-        <button
-          onClick={() => analyzePost(content)}
-          disabled={!content.trim() || loading}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Analyzing... Please wait</span>
-            </>
-          ) : (
-            <>
-              <span>🔍</span>
-              <span>Analyze</span>
-            </>
-          )}
-        </button>
-
-        {/* Suggestion Panels Container */}
-        <div className="grid grid-cols-1 gap-4">
-          {/* Post Suggestion */}
-          {suggestion && (
-            <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                ✨ Post Suggestion
-                {suggestionPersona && (
-                  <span className="text-sm font-normal px-2 py-0.5 bg-blue-900/50 text-blue-300 rounded">
-                    {personas.find(p => p.id === suggestionPersona)?.icon} {personas.find(p => p.id === suggestionPersona)?.name}
-                  </span>
-                )}
-              </h3>
-
-              {/* Persona Selector for Suggestion */}
-              {personas.length > 0 && (
-                <div className="mb-4 p-3 bg-blue-900/20 rounded-lg border border-blue-700/30">
-                  <span className="text-blue-300 text-sm block mb-2">
-                    Choose Your Voice:
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {personas.map((persona) => (
-                      <button
-                        key={persona.id}
-                        onClick={() => handleSuggestionPersona(
-                          suggestionPersona === persona.id ? null : persona.id
-                        )}
-                        disabled={regeneratingSuggestion || polishing !== null}
-                        className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
-                          suggestionPersona === persona.id
-                            ? "bg-blue-600 text-white ring-2 ring-blue-400"
-                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                        }`}
-                      >
-                        <span>{persona.icon}</span>
-                        <span>{persona.name}</span>
-                        {persona.risk_level === "medium" && (
-                          <span className="text-yellow-400 text-xs">⚡</span>
-                        )}
-                        {regeneratingSuggestion && suggestionPersona === persona.id && (
-                          <span className="text-xs">⏳</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
-                <p className="text-white whitespace-pre-wrap">
-                  {suggestion.suggested_content}
-                </p>
-                <div className="text-xs text-gray-500 mt-2">
-                  {suggestion.suggested_content.length}/280
-                </div>
-              </div>
-
-              {/* Polish Buttons inside suggestion */}
-              <div className="mb-4">
-                <span className="text-gray-400 text-sm block mb-2">
-                  Polish with Claude AI:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handlePolishSuggestion("grammar")}
-                    disabled={polishing !== null}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      polishing === "grammar"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    } disabled:opacity-50`}
-                  >
-                    ✍️ Keep Tone {polishing === "grammar" && "⏳"}
-                  </button>
-                  <button
-                    onClick={() => handlePolishSuggestion("twitter")}
-                    disabled={polishing !== null}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      polishing === "twitter"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    } disabled:opacity-50`}
-                  >
-                    🐦 Twitter Style {polishing === "twitter" && "⏳"}
-                  </button>
-                  <button
-                    onClick={() => handlePolishSuggestion("280char")}
-                    disabled={polishing !== null}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      polishing === "280char"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    } disabled:opacity-50`}
-                  >
-                    📏 Fit 280 chars {polishing === "280char" && "⏳"}
-                  </button>
-                </div>
-                <span className="text-gray-400 text-sm block mb-2 mt-3">
-                  Translate:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handlePolishSuggestion("translate_en")}
-                    disabled={polishing !== null}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      polishing === "translate_en"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    } disabled:opacity-50`}
-                  >
-                    🇺🇸 English {polishing === "translate_en" && "⏳"}
-                  </button>
-                  <button
-                    onClick={() => handlePolishSuggestion("translate_ko")}
-                    disabled={polishing !== null}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      polishing === "translate_ko"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    } disabled:opacity-50`}
-                  >
-                    🇰🇷 한국어 {polishing === "translate_ko" && "⏳"}
-                  </button>
-                  <button
-                    onClick={() => handlePolishSuggestion("translate_zh")}
-                    disabled={polishing !== null}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      polishing === "translate_zh"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                    } disabled:opacity-50`}
-                  >
-                    🇨🇳 中文 {polishing === "translate_zh" && "⏳"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 mb-4">
-                {suggestion.applied_tips.map((tip) => (
-                  <span
-                    key={tip.tip_id}
-                    className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded text-sm"
-                  >
-                    {tip.description} ({tip.impact})
-                  </span>
-                ))}
-              </div>
-              {Object.keys(suggestion.predicted_improvement).length > 0 && (
-                <div className="text-sm text-green-400 mb-4">
-                  Expected improvement:{" "}
-                  {Object.entries(suggestion.predicted_improvement)
-                    .map(([k, v]) => `${k} ${v}`)
-                    .join(", ")}
-                </div>
-              )}
-              <button
-                onClick={() => handleCopy(suggestion.suggested_content)}
-                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                <span>📋</span>
-                <span>Copy to Clipboard</span>
-              </button>
-            </div>
-          )}
-
-          {/* AI Personalized Post (for reply/quote only) */}
-          {postType !== "original" && (fetchingPersonalized || personalizedPost || targetPostContext) && (
-            <div className="bg-gray-800 rounded-xl p-4 border-2 border-purple-500">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                🤖 AI Personalized Post
-                {personalizedPost?.persona && (
-                  <span className="text-sm font-normal px-2 py-0.5 bg-purple-900/50 text-purple-300 rounded">
-                    {personalizedPost.persona.icon} {personalizedPost.persona.name}
-                  </span>
-                )}
-              </h3>
-
-              {/* Persona Selector - Always visible when target post is loaded */}
-              {personas.length > 0 && (
-                <div className="mb-4 p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
-                  <span className="text-purple-300 text-sm block mb-2">
-                    Choose Your Voice:
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {personas.map((persona) => (
-                      <button
-                        key={persona.id}
-                        onClick={() => setSelectedPersona(
-                          selectedPersona === persona.id ? null : persona.id
-                        )}
-                        disabled={fetchingPersonalized}
-                        className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
-                          selectedPersona === persona.id
-                            ? "bg-purple-600 text-white ring-2 ring-purple-400"
-                            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                        }`}
-                      >
-                        <span>{persona.icon}</span>
-                        <span>{persona.name}</span>
-                        {persona.risk_level === "medium" && (
-                          <span className="text-yellow-400 text-xs">⚡</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {selectedPersona && (
-                    <p className="text-xs text-gray-400 mt-2">
-                      {personas.find(p => p.id === selectedPersona)?.description}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {fetchingPersonalized ? (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-                  <p className="text-gray-400">
-                    {selectedPersona
-                      ? `Generating ${selectedPersona} response...`
-                      : "AI is generating personalized post..."}
-                  </p>
-                  <p className="text-gray-500 text-sm mt-1">Please wait</p>
-                </div>
-              ) : personalizedPost && (
-                <>
-                  {/* Generated Content */}
-                  <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
-                    <p className="text-white whitespace-pre-wrap">
-                      {personalizedPost.generated_content}
-                    </p>
-                    <div className="text-xs text-gray-500 mt-2">
-                      {personalizedPost.generated_content.length}/280
-                    </div>
-                  </div>
-
-                  {/* Persona Expected Impact */}
-                  {personalizedPost.persona && (
-                    <div className="mb-4 p-3 bg-purple-900/30 rounded-lg border border-purple-600/30">
-                      <div className="text-sm text-purple-300 mb-2 font-medium">
-                        📈 Expected Impact ({personalizedPost.persona.name})
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {Object.entries(personalizedPost.persona.pentagon_boost).map(([key, value]) => (
-                          <span
-                            key={key}
-                            className={`text-xs px-2 py-1 rounded ${
-                              value > 0
-                                ? "bg-green-900/50 text-green-400"
-                                : value < 0
-                                  ? "bg-red-900/50 text-red-400"
-                                  : "bg-gray-700 text-gray-400"
-                            }`}
-                          >
-                            {key}: {value > 0 ? "+" : ""}{Math.round(value * 100)}%
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Style Analysis */}
-                  <div className="mb-4 p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
-                    <div className="text-sm text-purple-300 mb-2 font-medium">
-                      📊 Style Analysis (Confidence: {Math.round(personalizedPost.confidence * 100)}%)
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <span className="text-gray-400">Tone:</span>
-                        <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.tone}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Emoji:</span>
-                        <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.emoji_style}</span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-400">Interests:</span>
-                        <span className="text-gray-300 ml-1">
-                          {personalizedPost.style_analysis.topics.slice(0, 3).join(", ")}
-                        </span>
-                      </div>
-                    </div>
-                    {personalizedPost.reasoning && (
-                      <div className="mt-2 pt-2 border-t border-purple-700/30 text-xs text-gray-400">
-                        {personalizedPost.reasoning}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Button */}
-                  <button
-                    onClick={() => handleCopy(personalizedPost.generated_content)}
-                    className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <span>📋</span>
-                    <span>Copy to Clipboard</span>
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Analysis Results */}
-      <div className="space-y-6">
+        {/* Analysis Results - Part of Row 1 */}
+        <div className="space-y-6">
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -919,7 +558,571 @@ export function PostEditor({ username }: PostEditorProps) {
             )}
           </div>
         )}
+        </div>
       </div>
+      {/* End of Row 1 */}
+
+      {/* Row 2: Target Post Preview (full width) */}
+      {postType !== "original" && (
+        <div className="w-full">
+          {/* Fetching state */}
+          {fetchingTarget && (
+            <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg">
+              <div className="flex items-center gap-3 text-gray-400">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div>
+                  <span className="text-white">Fetching target post...</span>
+                  <p className="text-sm text-gray-500">Please wait</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Target Preview */}
+          {targetPostContext && !fetchingTarget && (
+            <div className="p-4 bg-gray-800 border border-blue-500/50 rounded-lg">
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-semibold text-white">
+                      @{targetPostContext.author.username}
+                    </span>
+                    {targetPostContext.author.verified && (
+                      <span className="text-blue-400">✓</span>
+                    )}
+                  </div>
+                  {/* Content text - responsive */}
+                  <p className="text-gray-300 mb-3">
+                    {/* Mobile: 50 chars */}
+                    <span className="lg:hidden">
+                      {targetPostContext.content.text.length > 50
+                        ? targetPostContext.content.text.slice(0, 50) + "..."
+                        : targetPostContext.content.text}
+                    </span>
+                    {/* Desktop: 200 chars */}
+                    <span className="hidden lg:inline">
+                      {targetPostContext.content.text.length > 200
+                        ? targetPostContext.content.text.slice(0, 200) + "..."
+                        : targetPostContext.content.text}
+                    </span>
+                  </p>
+                  <div className="flex gap-4 text-sm text-gray-500">
+                    <span>❤️ {targetPostContext.metrics.likes.toLocaleString()}</span>
+                    <span>🔁 {targetPostContext.metrics.reposts.toLocaleString()}</span>
+                    <span>💬 {targetPostContext.metrics.replies.toLocaleString()}</span>
+                    <span>👁 {targetPostContext.metrics.views.toLocaleString()}</span>
+                  </div>
+                  {/* Opportunity Score - desktop only */}
+                  <div className="hidden lg:block mt-3 pt-3 border-t border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-sm">Opportunity Score:</span>
+                      <span className={`font-bold ${
+                        targetPostContext.opportunity_score.overall >= 70 ? "text-green-400" :
+                        targetPostContext.opportunity_score.overall >= 40 ? "text-yellow-400" :
+                        "text-red-400"
+                      }`}>
+                        {targetPostContext.opportunity_score.overall}/100
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        targetPostContext.analysis.freshness === "very_fresh" ? "bg-green-900/50 text-green-400" :
+                        targetPostContext.analysis.freshness === "fresh" ? "bg-blue-900/50 text-blue-400" :
+                        "bg-gray-700 text-gray-400"
+                      }`}>
+                        {targetPostContext.analysis.freshness === "very_fresh" ? "🔥 Very Fresh" :
+                         targetPostContext.analysis.freshness === "fresh" ? "✨ Fresh" :
+                         targetPostContext.analysis.freshness === "moderate" ? "Moderate" : "Old"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Row 3: Suggestions (full width) */}
+      {(suggestion || (postType !== "original" && (fetchingPersonalized || personalizedPost || targetPostContext))) && (
+        <div className="w-full">
+          {/* Unified Persona Selector */}
+          {personas.length > 0 && (
+            <div className="mb-4 p-3 bg-gray-700/50 rounded-lg">
+              <span className="text-gray-300 text-sm block mb-2">
+                Choose Your Voice:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {personas.map((persona) => (
+                  <button
+                    key={persona.id}
+                    onClick={() => {
+                      const newPersona = selectedPersona === persona.id ? null : persona.id;
+                      setSelectedPersona(newPersona);
+                      // Also trigger suggestion regeneration if applicable
+                      if (suggestion && newPersona) {
+                        handleSuggestionPersona(newPersona);
+                      }
+                    }}
+                    disabled={regeneratingSuggestion || polishing !== null || fetchingPersonalized}
+                    className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all disabled:opacity-50 ${
+                      selectedPersona === persona.id
+                        ? "bg-blue-600 text-white ring-2 ring-blue-400"
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    }`}
+                  >
+                    <span>{persona.icon}</span>
+                    <span className="hidden sm:inline">{persona.name}</span>
+                    {persona.risk_level === "medium" && (
+                      <span className="text-yellow-400 text-xs">⚡</span>
+                    )}
+                    {(regeneratingSuggestion || fetchingPersonalized) && selectedPersona === persona.id && (
+                      <span className="text-xs">⏳</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Mobile: Tab switcher */}
+          {postType !== "original" && suggestion && (
+            <div className="flex lg:hidden border-b border-gray-700 mb-4">
+              <button
+                onClick={() => setActiveTab("suggestion")}
+                className={`flex-1 py-3 text-center ${
+                  activeTab === "suggestion"
+                    ? "border-b-2 border-blue-500 text-blue-400"
+                    : "text-gray-500"
+                }`}
+              >
+                ✨ Suggestion
+              </button>
+              <button
+                onClick={() => setActiveTab("personalized")}
+                className={`flex-1 py-3 text-center ${
+                  activeTab === "personalized"
+                    ? "border-b-2 border-purple-500 text-purple-400"
+                    : "text-gray-500"
+                }`}
+              >
+                🤖 AI Post
+              </button>
+            </div>
+          )}
+
+          {/* Desktop: Side by side */}
+          <div className="hidden lg:grid lg:grid-cols-2 gap-4">
+            {/* Post Suggestion Panel */}
+            {suggestion && (
+              <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  ✨ Post Suggestion
+                  {selectedPersona && (
+                    <span className="text-sm font-normal px-2 py-0.5 bg-blue-900/50 text-blue-300 rounded">
+                      {personas.find(p => p.id === selectedPersona)?.icon} {personas.find(p => p.id === selectedPersona)?.name}
+                    </span>
+                  )}
+                </h3>
+
+                <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                  <p className="text-white whitespace-pre-wrap">
+                    {suggestion.suggested_content}
+                  </p>
+                  <div className="text-xs text-gray-500 mt-2">
+                    {suggestion.suggested_content.length}/280
+                  </div>
+                </div>
+
+                {/* Polish Buttons */}
+                <div className="mb-4">
+                  <span className="text-gray-400 text-sm block mb-2">
+                    Polish with Claude AI:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handlePolishSuggestion("grammar")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "grammar"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      ✍️ Keep Tone {polishing === "grammar" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishSuggestion("twitter")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "twitter"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🐦 Twitter Style {polishing === "twitter" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishSuggestion("280char")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "280char"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      📏 Fit 280 chars {polishing === "280char" && "⏳"}
+                    </button>
+                  </div>
+                  <span className="text-gray-400 text-sm block mb-2 mt-3">
+                    Translate:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handlePolishSuggestion("translate_en")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "translate_en"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🇺🇸 English {polishing === "translate_en" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishSuggestion("translate_ko")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "translate_ko"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🇰🇷 한국어 {polishing === "translate_ko" && "⏳"}
+                    </button>
+                    <button
+                      onClick={() => handlePolishSuggestion("translate_zh")}
+                      disabled={polishing !== null}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        polishing === "translate_zh"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      } disabled:opacity-50`}
+                    >
+                      🇨🇳 中文 {polishing === "translate_zh" && "⏳"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {suggestion.applied_tips.map((tip) => (
+                    <span
+                      key={tip.tip_id}
+                      className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded text-sm"
+                    >
+                      {tip.description} ({tip.impact})
+                    </span>
+                  ))}
+                </div>
+                {Object.keys(suggestion.predicted_improvement).length > 0 && (
+                  <div className="text-sm text-green-400 mb-4">
+                    Expected improvement:{" "}
+                    {Object.entries(suggestion.predicted_improvement)
+                      .map(([k, v]) => `${k} ${v}`)
+                      .join(", ")}
+                  </div>
+                )}
+                <button
+                  onClick={() => handleCopy(suggestion.suggested_content)}
+                  className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <span>📋</span>
+                  <span>Copy to Clipboard</span>
+                </button>
+              </div>
+            )}
+
+            {/* AI Personalized Post Panel */}
+            {postType !== "original" && (fetchingPersonalized || personalizedPost || targetPostContext) && (
+              <div className="bg-gray-800 rounded-xl p-4 border-2 border-purple-500">
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  🤖 AI Personalized Post
+                  {personalizedPost?.persona && (
+                    <span className="text-sm font-normal px-2 py-0.5 bg-purple-900/50 text-purple-300 rounded">
+                      {personalizedPost.persona.icon} {personalizedPost.persona.name}
+                    </span>
+                  )}
+                </h3>
+
+                {fetchingPersonalized ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                    <p className="text-gray-400">
+                      {selectedPersona
+                        ? `Generating ${selectedPersona} response...`
+                        : "AI is generating personalized post..."}
+                    </p>
+                    <p className="text-gray-500 text-sm mt-1">Please wait</p>
+                  </div>
+                ) : personalizedPost && (
+                  <>
+                    <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                      <p className="text-white whitespace-pre-wrap">
+                        {personalizedPost.generated_content}
+                      </p>
+                      <div className="text-xs text-gray-500 mt-2">
+                        {personalizedPost.generated_content.length}/280
+                      </div>
+                    </div>
+
+                    {personalizedPost.persona && (
+                      <div className="mb-4 p-3 bg-purple-900/30 rounded-lg border border-purple-600/30">
+                        <div className="text-sm text-purple-300 mb-2 font-medium">
+                          📈 Expected Impact ({personalizedPost.persona.name})
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(personalizedPost.persona.pentagon_boost).map(([key, value]) => (
+                            <span
+                              key={key}
+                              className={`text-xs px-2 py-1 rounded ${
+                                value > 0
+                                  ? "bg-green-900/50 text-green-400"
+                                  : value < 0
+                                    ? "bg-red-900/50 text-red-400"
+                                    : "bg-gray-700 text-gray-400"
+                              }`}
+                            >
+                              {key}: {value > 0 ? "+" : ""}{Math.round(value * 100)}%
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mb-4 p-3 bg-purple-900/20 rounded-lg border border-purple-700/30">
+                      <div className="text-sm text-purple-300 mb-2 font-medium">
+                        📊 Style Analysis (Confidence: {Math.round(personalizedPost.confidence * 100)}%)
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-400">Tone:</span>
+                          <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.tone}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-400">Emoji:</span>
+                          <span className="text-gray-300 ml-1">{personalizedPost.style_analysis.emoji_style}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-400">Interests:</span>
+                          <span className="text-gray-300 ml-1">
+                            {personalizedPost.style_analysis.topics.slice(0, 3).join(", ")}
+                          </span>
+                        </div>
+                      </div>
+                      {personalizedPost.reasoning && (
+                        <div className="mt-2 pt-2 border-t border-purple-700/30 text-xs text-gray-400">
+                          {personalizedPost.reasoning}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => handleCopy(personalizedPost.generated_content)}
+                      className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>📋</span>
+                      <span>Copy to Clipboard</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Mobile: Show based on active tab */}
+          <div className="lg:hidden">
+            {/* If only suggestion exists (original post), show it directly */}
+            {postType === "original" && suggestion && (
+              <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  ✨ Post Suggestion
+                  {selectedPersona && (
+                    <span className="text-sm font-normal px-2 py-0.5 bg-blue-900/50 text-blue-300 rounded">
+                      {personas.find(p => p.id === selectedPersona)?.icon} {personas.find(p => p.id === selectedPersona)?.name}
+                    </span>
+                  )}
+                </h3>
+
+                <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                  <p className="text-white whitespace-pre-wrap">
+                    {suggestion.suggested_content}
+                  </p>
+                  <div className="text-xs text-gray-500 mt-2">
+                    {suggestion.suggested_content.length}/280
+                  </div>
+                </div>
+
+                {/* Mobile: Polish/Translate Dropdowns */}
+                <div className="flex gap-2 mb-4">
+                  {/* Polish dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowPolishMenu(!showPolishMenu);
+                        setShowTranslateMenu(false);
+                      }}
+                      className="px-3 py-2 bg-gray-700 rounded-lg text-sm text-gray-300"
+                    >
+                      ✍️ Polish ▼
+                    </button>
+                    {showPolishMenu && (
+                      <div className="absolute bottom-full mb-2 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[140px]">
+                        <button onClick={() => { handlePolishSuggestion("grammar"); setShowPolishMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">Keep Tone</button>
+                        <button onClick={() => { handlePolishSuggestion("twitter"); setShowPolishMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">Twitter Style</button>
+                        <button onClick={() => { handlePolishSuggestion("280char"); setShowPolishMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">Fit 280</button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Translate dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowTranslateMenu(!showTranslateMenu);
+                        setShowPolishMenu(false);
+                      }}
+                      className="px-3 py-2 bg-gray-700 rounded-lg text-sm text-gray-300"
+                    >
+                      🌐 Translate ▼
+                    </button>
+                    {showTranslateMenu && (
+                      <div className="absolute bottom-full mb-2 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[120px]">
+                        <button onClick={() => { handlePolishSuggestion("translate_en"); setShowTranslateMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">🇺🇸 English</button>
+                        <button onClick={() => { handlePolishSuggestion("translate_ko"); setShowTranslateMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">🇰🇷 한국어</button>
+                        <button onClick={() => { handlePolishSuggestion("translate_zh"); setShowTranslateMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">🇨🇳 中文</button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleCopy(suggestion.suggested_content)}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {suggestion.applied_tips.map((tip) => (
+                    <span
+                      key={tip.tip_id}
+                      className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded text-xs"
+                    >
+                      {tip.description}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* For reply/quote, show based on tab */}
+            {postType !== "original" && activeTab === "suggestion" && suggestion && (
+              <div className="bg-gray-800 rounded-xl p-4 border-2 border-blue-500">
+                <h3 className="text-lg font-semibold text-white mb-3">✨ Post Suggestion</h3>
+
+                <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                  <p className="text-white whitespace-pre-wrap">
+                    {suggestion.suggested_content}
+                  </p>
+                  <div className="text-xs text-gray-500 mt-2">
+                    {suggestion.suggested_content.length}/280
+                  </div>
+                </div>
+
+                {/* Mobile dropdowns */}
+                <div className="flex gap-2 mb-4">
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowPolishMenu(!showPolishMenu);
+                        setShowTranslateMenu(false);
+                      }}
+                      className="px-3 py-2 bg-gray-700 rounded-lg text-sm text-gray-300"
+                    >
+                      ✍️ Polish ▼
+                    </button>
+                    {showPolishMenu && (
+                      <div className="absolute bottom-full mb-2 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[140px]">
+                        <button onClick={() => { handlePolishSuggestion("grammar"); setShowPolishMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">Keep Tone</button>
+                        <button onClick={() => { handlePolishSuggestion("twitter"); setShowPolishMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">Twitter Style</button>
+                        <button onClick={() => { handlePolishSuggestion("280char"); setShowPolishMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">Fit 280</button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowTranslateMenu(!showTranslateMenu);
+                        setShowPolishMenu(false);
+                      }}
+                      className="px-3 py-2 bg-gray-700 rounded-lg text-sm text-gray-300"
+                    >
+                      🌐 Translate ▼
+                    </button>
+                    {showTranslateMenu && (
+                      <div className="absolute bottom-full mb-2 left-0 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[120px]">
+                        <button onClick={() => { handlePolishSuggestion("translate_en"); setShowTranslateMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">🇺🇸 English</button>
+                        <button onClick={() => { handlePolishSuggestion("translate_ko"); setShowTranslateMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">🇰🇷 한국어</button>
+                        <button onClick={() => { handlePolishSuggestion("translate_zh"); setShowTranslateMenu(false); }} className="w-full px-3 py-2 text-left text-sm text-gray-300 hover:bg-gray-700">🇨🇳 中文</button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleCopy(suggestion.suggested_content)}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {postType !== "original" && activeTab === "personalized" && (
+              <div className="bg-gray-800 rounded-xl p-4 border-2 border-purple-500">
+                <h3 className="text-lg font-semibold text-white mb-3">🤖 AI Personalized Post</h3>
+
+                {fetchingPersonalized ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="w-8 h-8 border-3 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                    <p className="text-gray-400">Generating...</p>
+                  </div>
+                ) : personalizedPost ? (
+                  <>
+                    <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                      <p className="text-white whitespace-pre-wrap">
+                        {personalizedPost.generated_content}
+                      </p>
+                      <div className="text-xs text-gray-500 mt-2">
+                        {personalizedPost.generated_content.length}/280
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleCopy(personalizedPost.generated_content)}
+                      className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      <span>📋</span>
+                      <span>Copy to Clipboard</span>
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">Enter a target URL to generate</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
