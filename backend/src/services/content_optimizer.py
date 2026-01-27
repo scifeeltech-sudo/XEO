@@ -188,7 +188,7 @@ class ContentOptimizer:
         self,
         username: str,
         original_content: str,
-        selected_tips: list[str],
+        selected_tips: list[dict],
         language: str = "en",
     ) -> dict:
         """Apply selected tips to generate optimized content using Claude AI.
@@ -196,7 +196,7 @@ class ContentOptimizer:
         Args:
             username: User's username
             original_content: Original post content
-            selected_tips: List of tip IDs (or tip descriptions) to apply
+            selected_tips: List of dicts with tip_id and description
             language: Target language for suggestions (ko, en, ja, zh)
         """
         # Limit to 3 tips
@@ -216,21 +216,25 @@ class ContentOptimizer:
     async def _apply_tips_with_ai(
         self,
         content: str,
-        tips: list[str],
+        tips: list[dict],
         language: str,
     ) -> Optional[dict]:
         """Apply tips using Claude AI with X algorithm knowledge."""
         lang_names = {"ko": "Korean", "en": "English", "ja": "Japanese", "zh": "Chinese"}
         target_lang = lang_names.get(language, "Korean")
 
-        # Build tip descriptions
+        # Build tip descriptions from the dict format
         tip_descriptions = []
         for tip in tips:
-            if tip in TIP_TEMPLATES:
-                tip_descriptions.append(TIP_TEMPLATES[tip]["description"])
+            tip_id = tip.get("tip_id", "")
+            description = tip.get("description", "")
+            if tip_id in TIP_TEMPLATES:
+                tip_descriptions.append(TIP_TEMPLATES[tip_id]["description"])
+            elif description:
+                # Use the actual description from the tip
+                tip_descriptions.append(description)
             else:
-                # For algorithm-generated tips (algo_tip_0, etc.), use the tip ID directly
-                tip_descriptions.append(tip)
+                tip_descriptions.append(tip_id)
 
         system_prompt = f"""{X_ALGORITHM_KNOWLEDGE}
 
@@ -271,10 +275,13 @@ Return ONLY the optimized content:"""
             improvements = {}
 
             for tip in tips:
-                if tip in TIP_TEMPLATES:
-                    template = TIP_TEMPLATES[tip]
+                tip_id = tip.get("tip_id", "")
+                description = tip.get("description", "")
+
+                if tip_id in TIP_TEMPLATES:
+                    template = TIP_TEMPLATES[tip_id]
                     applied_tips.append({
-                        "tip_id": tip,
+                        "tip_id": tip_id,
                         "description": template["description"],
                         "impact": template["impact"],
                     })
@@ -288,10 +295,10 @@ Return ONLY the optimized content:"""
                         if match:
                             improvements["reach"] = improvements.get("reach", 0) + int(match.group(1))
                 else:
-                    # Algorithm-generated tip
+                    # Algorithm-generated tip - use the actual description
                     applied_tips.append({
-                        "tip_id": tip,
-                        "description": "X algorithm-based optimization",
+                        "tip_id": tip_id,
+                        "description": description or "X algorithm-based optimization",
                         "impact": "+10% (AI estimated)",
                     })
                     improvements["engagement"] = improvements.get("engagement", 0) + 10
@@ -310,7 +317,7 @@ Return ONLY the optimized content:"""
     def _apply_tips_fallback(
         self,
         content: str,
-        tips: list[str],
+        tips: list[dict],
         language: str,
     ) -> dict:
         """Fallback rule-based tip application."""
@@ -318,7 +325,10 @@ Return ONLY the optimized content:"""
         applied_tips = []
         improvements = {}
 
-        for tip_id in tips:
+        for tip in tips:
+            tip_id = tip.get("tip_id", "")
+            description = tip.get("description", "")
+
             if tip_id in TIP_TEMPLATES:
                 template = TIP_TEMPLATES[tip_id]
                 suggested_content = template["transform"](suggested_content, language)
@@ -336,6 +346,14 @@ Return ONLY the optimized content:"""
                     match = re.search(r"\+(\d+)%", template["impact"])
                     if match:
                         improvements["reach"] = improvements.get("reach", 0) + int(match.group(1))
+            else:
+                # Algorithm-generated tip - just record it (no rule-based transform available)
+                applied_tips.append({
+                    "tip_id": tip_id,
+                    "description": description or "Applied optimization",
+                    "impact": "+10% (estimated)",
+                })
+                improvements["engagement"] = improvements.get("engagement", 0) + 10
 
         return {
             "original_content": content,

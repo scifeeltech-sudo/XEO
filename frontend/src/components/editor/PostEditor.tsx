@@ -216,14 +216,23 @@ export function PostEditor({ username }: PostEditorProps) {
   };
 
   const handleApplyTips = async () => {
-    if (selectedTips.length === 0) return;
+    if (selectedTips.length === 0 || !analysis) return;
 
     setApplyingTips(true);
     try {
+      // Build tip selections with descriptions from analysis
+      const tipSelections = selectedTips.map((tipId) => {
+        const tip = analysis.quick_tips.find((t) => t.tip_id === tipId);
+        return {
+          tip_id: tipId,
+          description: tip?.description || tipId,
+        };
+      });
+
       const result = await api.applyTips({
         username,
         original_content: content,
-        selected_tips: selectedTips,
+        selected_tips: tipSelections,
         language: detectedLanguage,
       });
       setSuggestion(result);

@@ -166,10 +166,15 @@ async def analyze_post(request: PostAnalyzeRequest, background_tasks: Background
 
 # --- Apply Tips Endpoint ---
 
+class TipSelection(BaseModel):
+    tip_id: str
+    description: str
+
+
 class ApplyTipsRequest(BaseModel):
     username: str
     original_content: str
-    selected_tips: list[str]  # List of tip_ids
+    selected_tips: list[TipSelection]  # List of tip_id + description pairs
     language: str = "ko"  # Target language for suggestions
 
 
@@ -190,10 +195,15 @@ class ApplyTipsResponse(BaseModel):
 async def apply_tips(request: ApplyTipsRequest):
     """Apply selected tips to generate optimized post suggestion."""
     try:
+        # Convert tip selections to dict format for optimizer
+        tips_with_descriptions = [
+            {"tip_id": tip.tip_id, "description": tip.description}
+            for tip in request.selected_tips
+        ]
         result = await optimizer.apply_tips(
             username=request.username,
             original_content=request.original_content,
-            selected_tips=request.selected_tips,
+            selected_tips=tips_with_descriptions,
             language=request.language,
         )
         return result

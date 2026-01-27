@@ -57,10 +57,15 @@ export interface AnalyzePostRequest {
   target_language?: "ko" | "en" | "ja" | "zh";
 }
 
+export interface TipSelection {
+  tip_id: string;
+  description: string;
+}
+
 export interface ApplyTipsRequest {
   username: string;
   original_content: string;
-  selected_tips: string[];
+  selected_tips: TipSelection[];
   language?: string;
 }
 
