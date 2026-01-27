@@ -283,7 +283,7 @@ export function PostEditor({ username }: PostEditorProps) {
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
               }`}
             >
-              {type === "original" ? "My Post" : type === "reply" ? "Reply" : "Repost"}
+              {type === "original" ? "My Post" : type === "reply" ? "Reply" : "Quote"}
             </button>
           ))}
         </div>
