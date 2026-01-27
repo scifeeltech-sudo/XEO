@@ -123,9 +123,6 @@ class ScorePredictor:
             is_quote=(post_type == "quote"),
         )
 
-        # Detect language once upfront
-        detected_language = target_language or detect_language(content)
-
         # PARALLEL EXECUTION: Fetch profile and context simultaneously
         if post_type in ("reply", "quote") and target_post_url:
             # Run both tasks in parallel
@@ -149,8 +146,14 @@ class ScorePredictor:
 
         # Generate quick tips using X Algorithm Advisor
         target_content = context.target_post.content if context else None
-        if target_content and not target_language:
+
+        # Detect language once (prefer target content for replies/quotes)
+        if target_language:
+            detected_language = target_language
+        elif target_content:
             detected_language = detect_language(target_content)
+        else:
+            detected_language = detect_language(content)
 
         quick_tips = await self._generate_algorithm_tips(
             content=content,

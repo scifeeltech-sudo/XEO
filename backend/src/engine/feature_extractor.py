@@ -84,19 +84,23 @@ HASHTAG_PATTERN = re.compile(r"#\w+")
 MENTION_PATTERN = re.compile(r"@\w+")
 URL_PATTERN = re.compile(r"https?://\S+")
 QUESTION_PATTERN = re.compile(r"\?")
-CTA_PATTERNS = [
-    r"\bcheck\s+(this\s+)?out\b",
-    r"\blet\s+me\s+know\b",
-    r"\bwhat\s+do\s+you\s+think\b",
-    r"\bshare\s+your\b",
-    r"\btell\s+me\b",
-    r"\bdrop\s+a\b",
-    r"\bcomment\b",
-    r"\breply\b",
-    r"\bfollow\b",
-    r"\brt\s+if\b",
-    r"\blike\s+if\b",
-]
+# Combined CTA pattern for faster matching (single regex instead of 11)
+CTA_PATTERN = re.compile(
+    r"\b(?:"
+    r"check\s+(?:this\s+)?out|"
+    r"let\s+me\s+know|"
+    r"what\s+do\s+you\s+think|"
+    r"share\s+your|"
+    r"tell\s+me|"
+    r"drop\s+a|"
+    r"comment|"
+    r"reply|"
+    r"follow|"
+    r"rt\s+if|"
+    r"like\s+if"
+    r")\b",
+    re.IGNORECASE
+)
 THREAD_PATTERN = re.compile(r"🧵|\(\d+/\d+\)|^\d+\.|thread:", re.IGNORECASE)
 
 
@@ -125,10 +129,7 @@ def extract_post_features(
 
     # Questions & CTA
     has_question = bool(QUESTION_PATTERN.search(content))
-    has_cta = any(
-        re.search(pattern, content, re.IGNORECASE)
-        for pattern in CTA_PATTERNS
-    )
+    has_cta = bool(CTA_PATTERN.search(content))
 
     # Thread detection
     is_thread_starter = bool(THREAD_PATTERN.search(content))
