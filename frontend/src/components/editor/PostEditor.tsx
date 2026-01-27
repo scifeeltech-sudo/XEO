@@ -305,7 +305,7 @@ export function PostEditor({ username }: PostEditorProps) {
           </div>
           <button
             onClick={handleReset}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-yellow-600/70 hover:bg-yellow-600 text-yellow-100 font-medium rounded-lg transition-colors flex items-center gap-2"
           >
             <span>🔄</span>
             <span>Reset</span>
