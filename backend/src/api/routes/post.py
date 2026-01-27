@@ -1,15 +1,17 @@
 """Post analysis API routes."""
 
 from typing import Literal, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
 
 from src.services.score_predictor import ScorePredictor
 from src.services.content_optimizer import ContentOptimizer
+from src.db.supabase_client import SupabaseCache
 
 router = APIRouter()
 predictor = ScorePredictor()
 optimizer = ContentOptimizer()
+cache = SupabaseCache()
 
 
 class PostAnalyzeRequest(BaseModel):
@@ -70,7 +72,7 @@ class PostAnalysisResponse(BaseModel):
 
 
 @router.post("/analyze", response_model=PostAnalysisResponse)
-async def analyze_post(request: PostAnalyzeRequest):
+async def analyze_post(request: PostAnalyzeRequest, background_tasks: BackgroundTasks):
     """Analyze a post and predict scores."""
     try:
         result = await predictor.predict(
@@ -120,6 +122,22 @@ async def analyze_post(request: PostAnalyzeRequest):
                 context_adjustments=result.context.context_adjustments,
                 recommendations=result.context.recommendations,
             )
+
+        # Log user activity in background
+        target_handle = result.context.target_post.username if result.context else None
+        background_tasks.add_task(
+            cache.log_user_activity,
+            user_handle=request.username,
+            action_type=request.post_type,
+            target_handle=target_handle,
+            target_url=request.target_post_url,
+            post_content=request.content,
+            scores=result.scores.to_dict(),
+            quick_tips=[
+                {"tip_id": t.tip_id, "description": t.description, "impact": t.impact}
+                for t in result.quick_tips
+            ],
+        )
 
         return response
     except Exception as e:

@@ -199,3 +199,33 @@ class SupabaseCache:
             return True
         except Exception:
             return False
+
+    # ==================== User Activity Tracking ====================
+
+    async def log_user_activity(
+        self,
+        user_handle: str,
+        action_type: str,
+        target_handle: Optional[str] = None,
+        target_url: Optional[str] = None,
+        post_content: Optional[str] = None,
+        scores: Optional[dict[str, float]] = None,
+        quick_tips: Optional[list[dict[str, Any]]] = None,
+    ) -> bool:
+        """Log user activity for analytics."""
+        try:
+            self.client.table("user_activities").insert(
+                {
+                    "user_handle": user_handle,
+                    "action_type": action_type,
+                    "target_handle": target_handle,
+                    "target_url": target_url,
+                    "post_content": post_content,
+                    "scores": scores,
+                    "quick_tips": quick_tips,
+                }
+            ).execute()
+            return True
+        except Exception as e:
+            print(f"Failed to log user activity: {e}")
+            return False
