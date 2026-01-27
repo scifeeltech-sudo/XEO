@@ -301,7 +301,18 @@ Return ONLY the optimized content:"""
                         "description": description or "X algorithm-based optimization",
                         "impact": "+10% (AI estimated)",
                     })
-                    improvements["engagement"] = improvements.get("engagement", 0) + 10
+                    # Detect target score from description keywords
+                    desc_lower = description.lower()
+                    if "virality" in desc_lower or "viral" in desc_lower or "repost" in desc_lower or "quote" in desc_lower:
+                        improvements["virality"] = improvements.get("virality", 0) + 10
+                    elif "reach" in desc_lower or "hashtag" in desc_lower or "discover" in desc_lower:
+                        improvements["reach"] = improvements.get("reach", 0) + 10
+                    elif "quality" in desc_lower or "insight" in desc_lower or "value" in desc_lower:
+                        improvements["quality"] = improvements.get("quality", 0) + 10
+                    elif "longevity" in desc_lower or "dwell" in desc_lower or "evergreen" in desc_lower:
+                        improvements["longevity"] = improvements.get("longevity", 0) + 10
+                    else:
+                        improvements["engagement"] = improvements.get("engagement", 0) + 10
 
             return {
                 "original_content": content,
@@ -353,7 +364,18 @@ Return ONLY the optimized content:"""
                     "description": description or "Applied optimization",
                     "impact": "+10% (estimated)",
                 })
-                improvements["engagement"] = improvements.get("engagement", 0) + 10
+                # Detect target score from description keywords
+                desc_lower = description.lower()
+                if "virality" in desc_lower or "viral" in desc_lower or "repost" in desc_lower or "quote" in desc_lower:
+                    improvements["virality"] = improvements.get("virality", 0) + 10
+                elif "reach" in desc_lower or "hashtag" in desc_lower or "discover" in desc_lower:
+                    improvements["reach"] = improvements.get("reach", 0) + 10
+                elif "quality" in desc_lower or "insight" in desc_lower or "value" in desc_lower:
+                    improvements["quality"] = improvements.get("quality", 0) + 10
+                elif "longevity" in desc_lower or "dwell" in desc_lower or "evergreen" in desc_lower:
+                    improvements["longevity"] = improvements.get("longevity", 0) + 10
+                else:
+                    improvements["engagement"] = improvements.get("engagement", 0) + 10
 
         return {
             "original_content": content,
