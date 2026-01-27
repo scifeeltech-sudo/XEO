@@ -254,7 +254,10 @@ async def get_post_context(url: str = Query(..., description="Target post URL"))
     try:
         result = await optimizer.get_post_context(url)
         if not result:
-            raise HTTPException(status_code=404, detail="Post not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Post not found in recent 200 posts. The post may be too old or the account is very active."
+            )
         return result
     except HTTPException:
         raise

@@ -148,9 +148,15 @@ export function PostEditor({ username }: PostEditorProps) {
         // Auto-detect language from target post
         const lang = detectLanguage(context.content.text);
         setTargetLanguage(lang as "ko" | "en" | "ja" | "zh");
-      } catch {
+      } catch (error) {
         setTargetPostContext(null);
-        setTargetFetchError("Could not fetch target post. Please select language manually.");
+        // Extract error message from API response
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        if (errorMessage.includes("recent 200 posts")) {
+          setTargetFetchError("Post not found in recent 200 posts. Try a more recent post from this account.");
+        } else {
+          setTargetFetchError("Could not fetch target post. Please select language manually.");
+        }
       } finally {
         setFetchingTarget(false);
       }

@@ -86,7 +86,9 @@ class APIClient {
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to get post context: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      const detail = errorData.detail || response.statusText;
+      throw new Error(detail);
     }
 
     return response.json();
