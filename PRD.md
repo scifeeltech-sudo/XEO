@@ -730,6 +730,29 @@ CREATE TABLE analysis_stats (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Claude 제안 캐시 (AI 응답 캐싱)
+CREATE TABLE suggestion_cache (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content_hash TEXT UNIQUE NOT NULL,  -- 입력 내용 해시
+    suggestion_data JSONB,              -- Claude 응답 데이터
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '1 hour')
+);
+
+-- 사용자 활동 로그 (분석 히스토리)
+CREATE TABLE user_activities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_handle TEXT NOT NULL,          -- 분석 요청한 사용자
+    action_type TEXT NOT NULL,          -- 'original', 'reply', 'quote', 'thread'
+    target_handle TEXT,                 -- 답글/인용 대상 사용자
+    target_url TEXT,                    -- 대상 포스트 URL
+    post_content TEXT,                  -- 작성한 포스트 내용
+    scores JSONB,                       -- 예측 점수
+    quick_tips JSONB,                   -- 제안된 팁 목록
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 인덱스
 CREATE INDEX idx_profile_cache_username ON profile_cache(x_username);
 CREATE INDEX idx_profile_cache_expires ON profile_cache(expires_at);
@@ -737,6 +760,10 @@ CREATE INDEX idx_profile_analyses_username ON profile_analyses(x_username);
 CREATE INDEX idx_post_context_cache_post_id ON post_context_cache(post_id);
 CREATE INDEX idx_post_context_cache_expires ON post_context_cache(expires_at);
 CREATE INDEX idx_analysis_stats_created ON analysis_stats(created_at DESC);
+CREATE INDEX idx_suggestion_cache_hash ON suggestion_cache(content_hash);
+CREATE INDEX idx_suggestion_cache_expires ON suggestion_cache(expires_at);
+CREATE INDEX idx_user_activities_user ON user_activities(user_handle);
+CREATE INDEX idx_user_activities_created ON user_activities(created_at DESC);
 ```
 
 ---
@@ -998,14 +1025,18 @@ POST /api/v1/post/polish
 Request:
 {
     "content": "This is really insightful! I think the future of AI will be amazing",
-    "polish_type": "grammar",      // "grammar" | "twitter" | "280char"
-    "language": "en"               // 자동 감지 또는 명시적 지정
+    "polish_type": "grammar",      // "grammar" | "twitter" | "280char" | "translate_en" | "translate_ko" | "translate_zh"
+    "language": "en",              // 자동 감지 또는 명시적 지정
+    "target_post_content": "..."   // (선택) 어조 매칭용 대상 포스트 내용
 }
 
 // polish_type 옵션:
-// - "grammar": 어조 유지하며 문법 교정
+// - "grammar": 대상 포스트 어조에 맞춰 문법 교정
 // - "twitter": 트위터 스타일로 변환
 // - "280char": 280자 이내로 압축
+// - "translate_en": 영어로 번역
+// - "translate_ko": 한국어로 번역
+// - "translate_zh": 중국어로 번역
 
 Response:
 {
@@ -1237,78 +1268,59 @@ backend/
     └── test_content_optimizer.py
 ```
 
-### 8.2 Frontend (Next.js)
+### 8.2 Frontend (Next.js) ✅ 구현 완료
 
 ```
 frontend/
 ├── package.json
-├── next.config.js
+├── next.config.ts
 ├── tailwind.config.js
 ├── .env.local.example
 ├── .env.local                  # 환경변수 (gitignore)
 │
-├── app/
-│   ├── layout.tsx
-│   ├── page.tsx                # 랜딩 페이지 (유저네임 입력)
-│   ├── globals.css
-│   │
-│   ├── [username]/             # 동적 라우트: /elonmusk
-│   │   ├── page.tsx            # 프로필 분석 결과
-│   │   ├── loading.tsx
-│   │   └── compose/
-│   │       └── page.tsx        # 포스트 작성 & 분석
-│   │
-│   └── api/
-│       └── [...proxy]/
-│           └── route.ts        # Backend API 프록시
-│
-├── components/
-│   ├── ui/                     # 공통 UI 컴포넌트
-│   │   ├── Button.tsx
-│   │   ├── Card.tsx
-│   │   ├── Input.tsx
-│   │   └── Modal.tsx
-│   │
-│   ├── charts/
-│   │   ├── RadarChart.tsx      # 5각형 레이더 차트
-│   │   └── ScoreGauge.tsx
-│   │
-│   ├── editor/
-│   │   ├── PostEditor.tsx      # 포스트 작성 에디터
-│   │   ├── PostTypeSelector.tsx
-│   │   ├── RealTimeScore.tsx   # 실시간 스코어 표시
-│   │   ├── QuickTipSelector.tsx # 빠른 팁 체크박스 (최대 3개)
-│   │   ├── PostSuggestion.tsx  # 포스팅 제안 칸
-│   │   ├── AnalyzeButton.tsx   # 분석하기 버튼 (답글/인용용)
-│   │   └── PolishButtons.tsx   # 글 다듬기 버튼 3종
-│   │
-│   ├── profile/
-│   │   ├── ProfileCard.tsx
-│   │   └── ProfileInsights.tsx
-│   │
-│   └── optimizer/
-│       ├── ScoreSelector.tsx   # 목표 스코어 선택
-│       ├── SuggestionCard.tsx
-│       └── OptimizedVersions.tsx
-│
-├── hooks/
-│   ├── useProfile.ts           # 프로필 분석 데이터
-│   ├── usePostAnalysis.ts      # 포스트 스코어 예측
-│   ├── useOptimize.ts          # 콘텐츠 최적화
-│   ├── useApplyTips.ts         # 빠른 팁 반영 (포스팅 제안)
-│   ├── usePolish.ts            # 글 다듬기 (Claude)
-│   └── useWebSocket.ts         # 실시간 스코어
-│
-├── lib/
-│   ├── api.ts                  # API 클라이언트
-│   ├── supabase.ts             # Supabase 클라이언트
-│   └── utils.ts
-│
-└── types/
-    ├── user.ts
-    ├── analysis.ts
-    └── api.ts
+└── src/
+    ├── app/
+    │   ├── layout.tsx              # 루트 레이아웃
+    │   ├── page.tsx                # 랜딩 페이지 (유저네임 입력)
+    │   ├── globals.css
+    │   │
+    │   └── [username]/             # 동적 라우트: /elonmusk
+    │       ├── page.tsx            # 프로필 분석 결과
+    │       ├── loading.tsx         # 로딩 UI
+    │       └── compose/
+    │           └── page.tsx        # 포스트 작성 & 분석
+    │
+    ├── components/
+    │   ├── charts/
+    │   │   └── RadarChart.tsx      # Recharts 5각형 레이더 차트
+    │   │
+    │   └── editor/
+    │       └── PostEditor.tsx      # 통합 포스트 에디터
+    │                               # - 포스트 타입 선택
+    │                               # - 대상 포스트 URL 입력 (debounced)
+    │                               # - 실시간 스코어 표시
+    │                               # - 빠른 팁 선택 (최대 3개)
+    │                               # - 글 다듬기 버튼
+    │                               # - AI 개인화 포스트 생성
+    │
+    ├── lib/
+    │   ├── api.ts                  # API 클라이언트 (싱글톤)
+    │   └── utils.ts                # 유틸리티 함수
+    │
+    └── types/
+        └── api.ts                  # API 타입 정의
 ```
+
+#### API 클라이언트 (`lib/api.ts`)
+
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| `analyzeProfile(username)` | GET /api/v1/profile/{username}/analyze | 프로필 분석 |
+| `analyzePost(request)` | POST /api/v1/post/analyze | 포스트 스코어 예측 |
+| `applyTips(request)` | POST /api/v1/post/apply-tips | 팁 적용하여 제안 생성 |
+| `polishPost(request)` | POST /api/v1/post/polish | 글 다듬기/번역 |
+| `getPostContext(url)` | GET /api/v1/post/context | 대상 포스트 컨텍스트 |
+| `generatePersonalizedPost(request)` | POST /api/v1/post/generate-personalized | AI 개인화 포스트 |
 
 ---
 
@@ -1482,11 +1494,12 @@ SCORE_WEIGHTS = {
 
 ---
 
-*문서 버전: 1.6*
-*최종 수정: 2026-01-26*
+*문서 버전: 1.7*
+*최종 수정: 2026-01-27*
 *변경사항:
 - v1.2: 포스팅 제안 기능 추가 (빠른 팁 선택 → 최적화된 포스팅 자동 생성)
 - v1.3: 답글/인용 분석 및 글 다듬기 기능 추가 (분석하기 버튼, Claude 기반 글 다듬기 3종)
 - v1.4: 글 다듬기 버튼 위치를 포스팅 제안 박스 내부로 이동, 다국어 자동 감지 및 지원 (한/영/일/중)
 - v1.5: X 알고리즘 기반 팁 생성 (XAlgorithmAdvisor), Sela API TWITTER_POST 제한사항 문서화, 대상 포스트 언어 수동 선택 UI 추가
-- v1.6: 현재 구현 상태 반영 - 기술 스택 버전 명시, AI 개인화 포스트 생성 기능 추가, 다층 캐싱 전략 문서화, 개발 단계 완료 상태 업데이트*
+- v1.6: 현재 구현 상태 반영 - 기술 스택 버전 명시, AI 개인화 포스트 생성 기능 추가, 다층 캐싱 전략 문서화, 개발 단계 완료 상태 업데이트
+- v1.7: 실제 구현 상태 동기화 - 프론트엔드 구조(src/ 디렉토리), 번역 기능(translate_en/ko/zh), DB 스키마(suggestion_cache, user_activities 테이블), API 클라이언트 메서드 목록*

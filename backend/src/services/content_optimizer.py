@@ -351,6 +351,13 @@ Return ONLY the optimized content:"""
         if not tweet:
             return None
 
+        # Fetch profile to get followers count
+        profile_data = await self.client.get_twitter_profile(tweet.username, post_count=1)
+        followers_count = 0
+        if profile_data.profile and profile_data.profile.tweets:
+            # Estimate from avg views (rough approximation)
+            followers_count = int(profile_data.profile.avg_views / 10) if profile_data.profile.avg_views > 0 else 0
+
         # Calculate age
         age_minutes = 0
         if tweet.posted_at:
@@ -414,7 +421,7 @@ Return ONLY the optimized content:"""
             "author": {
                 "username": tweet.username,
                 "display_name": None,
-                "followers_count": 0,  # Not available from tweet data
+                "followers_count": followers_count,
                 "verified": False,
             },
             "content": {
