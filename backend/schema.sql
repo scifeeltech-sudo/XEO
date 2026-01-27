@@ -55,13 +55,35 @@ CREATE TABLE IF NOT EXISTS analysis_stats (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 인덱스
+-- 인덱스 (단일 컬럼)
 CREATE INDEX IF NOT EXISTS idx_profile_cache_username ON profile_cache(x_username);
 CREATE INDEX IF NOT EXISTS idx_profile_cache_expires ON profile_cache(expires_at);
 CREATE INDEX IF NOT EXISTS idx_profile_analyses_username ON profile_analyses(x_username);
 CREATE INDEX IF NOT EXISTS idx_post_context_cache_post_id ON post_context_cache(post_id);
 CREATE INDEX IF NOT EXISTS idx_post_context_cache_expires ON post_context_cache(expires_at);
 CREATE INDEX IF NOT EXISTS idx_analysis_stats_created ON analysis_stats(created_at DESC);
+
+-- 복합 인덱스 (자주 사용되는 쿼리 패턴 최적화)
+CREATE INDEX IF NOT EXISTS idx_profile_cache_user_expires ON profile_cache(x_username, expires_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profile_analyses_user_created ON profile_analyses(x_username, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_post_context_cache_id_expires ON post_context_cache(post_id, expires_at DESC);
+
+-- 만료된 캐시 자동 정리 함수
+CREATE OR REPLACE FUNCTION cleanup_expired_cache()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM profile_cache WHERE expires_at < NOW();
+    DELETE FROM profile_analyses WHERE expires_at < NOW();
+    DELETE FROM post_context_cache WHERE expires_at < NOW();
+END;
+$$ LANGUAGE plpgsql;
+
+-- Supabase pg_cron 확장 사용 시 자동 정리 스케줄 (선택사항)
+-- 아래 명령어는 pg_cron 확장이 활성화되어 있을 때만 실행
+-- SELECT cron.schedule('cleanup-expired-cache', '0 * * * *', 'SELECT cleanup_expired_cache()');
+
+-- 수동 정리용 (API 엔드포인트에서 호출 가능)
+-- SELECT cleanup_expired_cache();
 
 -- RLS (Row Level Security) 비활성화 - 공개 서비스이므로
 ALTER TABLE profile_cache ENABLE ROW LEVEL SECURITY;

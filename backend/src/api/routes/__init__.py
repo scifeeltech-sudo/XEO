@@ -1,1 +1,1 @@
-from . import profile, post
+from . import profile, post, admin

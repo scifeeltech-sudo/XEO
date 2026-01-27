@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 load_dotenv()
 
@@ -120,6 +120,9 @@ class ProfileData(BaseModel):
     tweets: list[TweetData] = Field(default_factory=list)
     job_id: str | None = None
 
+    # Cached aggregates (computed in single pass) - Pydantic V2 PrivateAttr
+    _aggregates: dict[str, float] | None = PrivateAttr(default=None)
+
     @classmethod
     def from_api_response(cls, data: dict[str, Any]) -> "ProfileData":
         """Parse profile data from Sela API response."""
@@ -145,70 +148,134 @@ class ProfileData(BaseModel):
             job_id=inner_data.get("jobId"),
         )
 
+    def _compute_aggregates(self) -> dict[str, float]:
+        """Compute all aggregates in a single pass over tweets.
+
+        This optimizes from O(n*9) to O(n) when multiple properties are accessed.
+        """
+        if self._aggregates is not None:
+            return self._aggregates
+
+        if not self.tweets:
+            self._aggregates = {
+                "total_engagement_rate": 0.0,
+                "total_likes": 0.0,
+                "total_retweets": 0.0,
+                "total_replies": 0.0,
+                "total_views": 0.0,
+                "retweet_count": 0.0,
+                "quote_count": 0.0,
+                "media_count": 0.0,
+                "tweet_count": 0.0,
+            }
+            return self._aggregates
+
+        # Single pass aggregation
+        total_engagement_rate = 0.0
+        total_likes = 0
+        total_retweets = 0
+        total_replies = 0
+        total_views = 0
+        retweet_count = 0
+        quote_count = 0
+        media_count = 0
+
+        for t in self.tweets:
+            total_engagement_rate += t.engagement_rate
+            total_likes += t.likes_count
+            total_retweets += t.retweets_count
+            total_replies += t.replies_count
+            total_views += t.views_count
+            if t.is_retweet:
+                retweet_count += 1
+            if t.is_quote:
+                quote_count += 1
+            if t.has_media:
+                media_count += 1
+
+        tweet_count = len(self.tweets)
+        self._aggregates = {
+            "total_engagement_rate": total_engagement_rate,
+            "total_likes": float(total_likes),
+            "total_retweets": float(total_retweets),
+            "total_replies": float(total_replies),
+            "total_views": float(total_views),
+            "retweet_count": float(retweet_count),
+            "quote_count": float(quote_count),
+            "media_count": float(media_count),
+            "tweet_count": float(tweet_count),
+        }
+        return self._aggregates
+
     @property
     def avg_engagement_rate(self) -> float:
         """Calculate average engagement rate across all tweets."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        rates = [t.engagement_rate for t in self.tweets]
-        return sum(rates) / len(rates)
+        return agg["total_engagement_rate"] / agg["tweet_count"]
 
     @property
     def avg_likes(self) -> float:
         """Calculate average likes per tweet."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        return sum(t.likes_count for t in self.tweets) / len(self.tweets)
+        return agg["total_likes"] / agg["tweet_count"]
 
     @property
     def avg_retweets(self) -> float:
         """Calculate average retweets per tweet."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        return sum(t.retweets_count for t in self.tweets) / len(self.tweets)
+        return agg["total_retweets"] / agg["tweet_count"]
 
     @property
     def avg_replies(self) -> float:
         """Calculate average replies per tweet."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        return sum(t.replies_count for t in self.tweets) / len(self.tweets)
+        return agg["total_replies"] / agg["tweet_count"]
 
     @property
     def avg_views(self) -> float:
         """Calculate average views per tweet."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        return sum(t.views_count for t in self.tweets) / len(self.tweets)
+        return agg["total_views"] / agg["tweet_count"]
 
     @property
     def original_tweets(self) -> list[TweetData]:
         """Get only original tweets (not retweets)."""
+        # This still needs iteration as it returns filtered list
         return [t for t in self.tweets if not t.is_retweet]
 
     @property
     def retweet_ratio(self) -> float:
         """Calculate ratio of retweets to total tweets."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        retweets = sum(1 for t in self.tweets if t.is_retweet)
-        return retweets / len(self.tweets)
+        return agg["retweet_count"] / agg["tweet_count"]
 
     @property
     def quote_ratio(self) -> float:
         """Calculate ratio of quote tweets to total tweets."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        quotes = sum(1 for t in self.tweets if t.is_quote)
-        return quotes / len(self.tweets)
+        return agg["quote_count"] / agg["tweet_count"]
 
     @property
     def media_ratio(self) -> float:
         """Calculate ratio of tweets with media."""
-        if not self.tweets:
+        agg = self._compute_aggregates()
+        if agg["tweet_count"] == 0:
             return 0.0
-        with_media = sum(1 for t in self.tweets if t.has_media)
-        return with_media / len(self.tweets)
+        return agg["media_count"] / agg["tweet_count"]
 
 
 class ScrapeResponse(BaseModel):

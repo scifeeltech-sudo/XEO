@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { ProfileAnalysis } from "@/types/api";
-import { RadarChart } from "@/components/charts/RadarChart";
+// Lazy-loaded RadarChart to reduce initial bundle size
+import { RadarChartLazy as RadarChart } from "@/components/charts/RadarChartLazy";
 
 export default function ProfilePage() {
   const params = useParams();

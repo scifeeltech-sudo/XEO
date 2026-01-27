@@ -3,7 +3,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { PostAnalysis, ApplyTipsResponse, PolishType, TargetPostContext, PersonalizedPostResponse } from "@/types/api";
-import { RadarChart } from "@/components/charts/RadarChart";
+// Lazy-loaded RadarChart to reduce initial bundle size (~500KB reduction)
+// Fallback: import { RadarChart } from "@/components/charts/RadarChart";
+import { RadarChartLazy as RadarChart } from "@/components/charts/RadarChartLazy";
 
 interface PostEditorProps {
   username: string;

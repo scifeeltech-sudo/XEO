@@ -15,6 +15,22 @@ optimizer = ContentOptimizer()
 cache = SupabaseCache()
 
 
+async def _log_activity_background(activity_data: dict) -> None:
+    """Background task to log user activity without blocking main response."""
+    try:
+        await cache.log_user_activity(
+            user_handle=activity_data["user_handle"],
+            action_type=activity_data["action_type"],
+            target_handle=activity_data["target_handle"],
+            target_url=activity_data["target_url"],
+            post_content=activity_data["post_content"],
+            scores=activity_data["scores"],
+            quick_tips=activity_data["quick_tips"],
+        )
+    except Exception as log_error:
+        print(f"Background activity log failed: {log_error}")
+
+
 def extract_username_from_url(url: Optional[str]) -> Optional[str]:
     """Extract username from X/Twitter post URL."""
     if not url:
@@ -136,28 +152,28 @@ async def analyze_post(request: PostAnalyzeRequest, background_tasks: Background
                 recommendations=result.context.recommendations,
             )
 
-        # Log user activity (direct call for debugging)
+        # Log user activity in background (non-blocking)
         # Get target_handle from context, or extract from URL as fallback
         target_handle = (
             result.context.target_post.username
             if result.context
             else extract_username_from_url(request.target_post_url)
         )
-        try:
-            await cache.log_user_activity(
-                user_handle=request.username,
-                action_type=request.post_type,
-                target_handle=target_handle,
-                target_url=request.target_post_url,
-                post_content=request.content,
-                scores=result.scores.to_dict(),
-                quick_tips=[
-                    {"tip_id": t.tip_id, "description": t.description, "impact": t.impact}
-                    for t in result.quick_tips
-                ],
-            )
-        except Exception as log_error:
-            print(f"Failed to log activity: {log_error}")
+
+        # Prepare data for background task
+        activity_data = {
+            "user_handle": request.username,
+            "action_type": request.post_type,
+            "target_handle": target_handle,
+            "target_url": request.target_post_url,
+            "post_content": request.content,
+            "scores": result.scores.to_dict(),
+            "quick_tips": [
+                {"tip_id": t.tip_id, "description": t.description, "impact": t.impact}
+                for t in result.quick_tips
+            ],
+        }
+        background_tasks.add_task(_log_activity_background, activity_data)
 
         return response
     except Exception as e:

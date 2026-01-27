@@ -1,4 +1,11 @@
-"""Supabase client for caching and analytics."""
+"""Supabase client for caching and analytics.
+
+Connection Pooling Notes:
+- Supabase Python client uses httpx internally which provides connection pooling
+- The @lru_cache decorator ensures a singleton client instance is reused
+- All SupabaseCache instances share the same underlying HTTP connection pool
+- Default httpx limits: 100 max connections, 20 keepalive connections
+"""
 
 import os
 from datetime import datetime, timezone, timedelta
@@ -13,7 +20,12 @@ load_dotenv()
 
 @lru_cache
 def get_supabase_client() -> Client:
-    """Get singleton Supabase client."""
+    """Get singleton Supabase client with connection pooling.
+
+    Uses @lru_cache to ensure only one client instance exists,
+    which shares the underlying httpx connection pool across all requests.
+    This prevents connection overhead from creating new clients per request.
+    """
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_ANON_KEY")
 
@@ -229,3 +241,56 @@ class SupabaseCache:
         except Exception as e:
             print(f"Failed to log user activity: {e}")
             return False
+
+    # ==================== Cache Cleanup ====================
+
+    async def cleanup_expired_cache(self) -> dict[str, int]:
+        """Delete expired cache entries from all cache tables.
+
+        Returns:
+            dict with count of deleted rows per table
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        deleted_counts = {
+            "profile_cache": 0,
+            "profile_analyses": 0,
+            "post_context_cache": 0,
+        }
+
+        try:
+            # Clean profile_cache
+            result = (
+                self.client.table("profile_cache")
+                .delete()
+                .lt("expires_at", now)
+                .execute()
+            )
+            deleted_counts["profile_cache"] = len(result.data) if result.data else 0
+        except Exception as e:
+            print(f"Failed to cleanup profile_cache: {e}")
+
+        try:
+            # Clean profile_analyses
+            result = (
+                self.client.table("profile_analyses")
+                .delete()
+                .lt("expires_at", now)
+                .execute()
+            )
+            deleted_counts["profile_analyses"] = len(result.data) if result.data else 0
+        except Exception as e:
+            print(f"Failed to cleanup profile_analyses: {e}")
+
+        try:
+            # Clean post_context_cache
+            result = (
+                self.client.table("post_context_cache")
+                .delete()
+                .lt("expires_at", now)
+                .execute()
+            )
+            deleted_counts["post_context_cache"] = len(result.data) if result.data else 0
+        except Exception as e:
+            print(f"Failed to cleanup post_context_cache: {e}")
+
+        return deleted_counts

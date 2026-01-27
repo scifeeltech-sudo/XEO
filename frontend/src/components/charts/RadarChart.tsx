@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import {
   Radar,
   RadarChart as RechartsRadarChart,
@@ -24,12 +25,23 @@ const LABELS: Record<keyof PentagonScores, string> = {
   longevity: "Longevity",
 };
 
-export function RadarChart({ scores, size = 300 }: RadarChartProps) {
-  const data = Object.entries(scores).map(([key, value]) => ({
-    subject: LABELS[key as keyof PentagonScores],
-    value: value,
-    fullMark: 100,
-  }));
+// Memoized tooltip formatter to prevent recreation on each render
+const tooltipFormatter = (value: unknown) => [
+  `${typeof value === "number" ? value.toFixed(1) : value}`,
+  "Score",
+];
+
+function RadarChartComponent({ scores, size = 300 }: RadarChartProps) {
+  // Memoize data transformation to prevent recalculation on parent re-renders
+  const data = useMemo(
+    () =>
+      Object.entries(scores).map(([key, value]) => ({
+        subject: LABELS[key as keyof PentagonScores],
+        value: value,
+        fullMark: 100,
+      })),
+    [scores]
+  );
 
   return (
     <ResponsiveContainer width="100%" height={size}>
@@ -52,13 +64,12 @@ export function RadarChart({ scores, size = 300 }: RadarChartProps) {
           fillOpacity={0.3}
           strokeWidth={2}
         />
-        <Tooltip
-          formatter={(value) => [
-            `${typeof value === "number" ? value.toFixed(1) : value}`,
-            "Score",
-          ]}
-        />
+        <Tooltip formatter={tooltipFormatter} />
       </RechartsRadarChart>
     </ResponsiveContainer>
   );
 }
+
+// Memoize the entire component to prevent re-renders when parent updates
+// Only re-renders when scores or size actually change
+export const RadarChart = memo(RadarChartComponent);
