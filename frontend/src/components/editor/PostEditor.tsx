@@ -325,18 +325,19 @@ export function PostEditor({ username }: PostEditorProps) {
     }
   };
 
-  // Unified polish handler - applies to both suggestion and personalized post
+  // Unified polish handler - applies to both suggestion and personalized post in parallel
   const handlePolishAll = async (type: PolishType) => {
     if (polishing) return;
 
-    // Polish suggestion if exists
+    // Polish both in parallel for faster execution
+    const tasks: Promise<void>[] = [];
     if (suggestion) {
-      await handlePolishSuggestion(type);
+      tasks.push(handlePolishSuggestion(type));
     }
-    // Polish personalized post if exists
     if (personalizedPost) {
-      await handlePolishPersonalized(type);
+      tasks.push(handlePolishPersonalized(type));
     }
+    await Promise.all(tasks);
   };
 
   // Regenerate suggestion with persona styling
