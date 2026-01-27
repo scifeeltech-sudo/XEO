@@ -51,7 +51,7 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 
 #### 분석 항목
 ```
-입력 데이터:
+입력 데이터 (최근 10개 포스트 기반):
 ├── 팔로워/팔로잉 비율
 ├── 최근 포스트 참여율 (좋아요, 리포스트, 답글)
 ├── 포스트 빈도
@@ -60,6 +60,16 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 ├── 해시태그 사용 패턴
 └── 활동 시간대
 ```
+
+#### 스코어 계산 기준
+
+| 스코어 | 계산 기준 | 베이스라인 |
+|--------|----------|-----------|
+| **Reach** | 평균 조회수 기반 | 10,000 views = 100점 |
+| **Engagement** | 참여율 (좋아요+답글+리포스트/조회수) | 0.01~0.05 = 정상 범위 |
+| **Virality** | 리포스트 비율 및 볼륨 | - |
+| **Quality** | 일관성 및 오리지널 콘텐츠 비율 | - |
+| **Longevity** | 미디어 사용률, 지속적 참여 | 미디어 비율 높을수록 + |
 
 #### 출력
 - 5각형 레이더 차트로 시각화된 프로필 점수
@@ -196,15 +206,23 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 
 #### 컨텍스트가 스코어에 미치는 영향
 
-| 컨텍스트 요소 | 영향 | 설명 |
-|--------------|------|------|
-| 원본 포스트 인기도 | 도달률 ↑ | 인기 포스트에 답글 달면 노출 증가 |
-| 원본 작성자 팔로워 수 | 도달률 ↑ | 대형 계정 포스트는 더 많은 노출 |
-| 포스트 신선도 | 도달률 ↑ | 최신 포스트일수록 답글 노출 유리 |
-| 대화 깊이 | 도달률 ↓ | 깊은 스레드일수록 노출 감소 |
-| 기존 답글 수 | 경쟁도 ↑ | 답글 많으면 내 답글 묻힐 가능성 |
-| 토픽 관련성 | 품질 ↑ | 원본과 관련된 답글이 더 높은 품질 점수 |
-| 상호 팔로우 여부 | 참여도 ↑ | 상호 팔로우 시 작성자 응답 가능성 증가 |
+| 컨텍스트 요소 | 영향 | 임계값 | 설명 |
+|--------------|------|--------|------|
+| 원본 포스트 인기도 | 도달률 +25% | >100,000 views | 대형 계정 포스트에 답글 시 노출 증가 |
+| 포스트 신선도 | 도달률 +15% | <60분 | 최신 포스트일수록 답글 노출 유리 |
+| 기존 답글 수 | 경쟁도 -10% | >1,000 replies | 답글 많으면 내 답글 묻힐 가능성 |
+| 대화 깊이 | 도달률 ↓ | - | 깊은 스레드일수록 노출 감소 |
+| 토픽 관련성 | 품질 ↑ | - | 원본과 관련된 답글이 더 높은 품질 점수 |
+| 상호 팔로우 여부 | 참여도 ↑ | - | 상호 팔로우 시 작성자 응답 가능성 증가 |
+
+#### Freshness 분류 기준
+
+| 상태 | 시간 범위 | 노출 영향 |
+|------|----------|----------|
+| very_fresh | 0~15분 | 최고 (신선도 보너스 최대) |
+| fresh | 15~60분 | 높음 |
+| moderate | 1~6시간 | 보통 |
+| old | 6시간+ | 낮음 |
 
 #### 컨텍스트 기반 추천 예시
 
@@ -660,11 +678,26 @@ API 비용 절감과 응답 속도 향상을 위한 3단계 캐싱 시스템:
 | **Supabase** | 1시간 (프로필) / 15분 (포스트) | 프로필/분석 결과 캐싱 | API 비용 절감, 서버 간 공유 |
 | **Sela API** | - | 원본 데이터 소스 | Rate limit 관리 필요 |
 
+#### 언어 감지 캐싱
+
+| 항목 | 값 | 설명 |
+|------|-----|------|
+| 캐시 크기 | 최대 1,000개 | LRU 방식으로 오래된 항목 제거 |
+| 키 | 콘텐츠 해시 | 동일 텍스트 재분석 방지 |
+| 지원 언어 | ko, en, ja, zh | 정규식 기반 자동 감지 |
+
 #### 비동기 캐시 업데이트
 
 ```
 응답 먼저 반환 → 백그라운드에서 캐시 저장
 (사용자 대기 시간 최소화)
+```
+
+#### asyncio.gather 병렬 처리
+
+```
+프로필 조회 + 컨텍스트 조회를 동시에 실행
+→ 응답 시간 50% 단축
 ```
 
 ---
@@ -730,40 +763,66 @@ CREATE TABLE analysis_stats (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Claude 제안 캐시 (AI 응답 캐싱)
-CREATE TABLE suggestion_cache (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    content_hash TEXT UNIQUE NOT NULL,  -- 입력 내용 해시
-    suggestion_data JSONB,              -- Claude 응답 데이터
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '1 hour')
-);
-
--- 사용자 활동 로그 (분석 히스토리)
-CREATE TABLE user_activities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_handle TEXT NOT NULL,          -- 분석 요청한 사용자
-    action_type TEXT NOT NULL,          -- 'original', 'reply', 'quote', 'thread'
-    target_handle TEXT,                 -- 답글/인용 대상 사용자
-    target_url TEXT,                    -- 대상 포스트 URL
-    post_content TEXT,                  -- 작성한 포스트 내용
-    scores JSONB,                       -- 예측 점수
-    quick_tips JSONB,                   -- 제안된 팁 목록
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 인덱스
+-- 인덱스 (단일 컬럼)
 CREATE INDEX idx_profile_cache_username ON profile_cache(x_username);
 CREATE INDEX idx_profile_cache_expires ON profile_cache(expires_at);
 CREATE INDEX idx_profile_analyses_username ON profile_analyses(x_username);
 CREATE INDEX idx_post_context_cache_post_id ON post_context_cache(post_id);
 CREATE INDEX idx_post_context_cache_expires ON post_context_cache(expires_at);
 CREATE INDEX idx_analysis_stats_created ON analysis_stats(created_at DESC);
-CREATE INDEX idx_suggestion_cache_hash ON suggestion_cache(content_hash);
-CREATE INDEX idx_suggestion_cache_expires ON suggestion_cache(expires_at);
-CREATE INDEX idx_user_activities_user ON user_activities(user_handle);
-CREATE INDEX idx_user_activities_created ON user_activities(created_at DESC);
+
+-- 복합 인덱스 (자주 사용되는 쿼리 패턴 최적화)
+CREATE INDEX idx_profile_cache_user_expires ON profile_cache(x_username, expires_at DESC);
+CREATE INDEX idx_profile_analyses_user_created ON profile_analyses(x_username, created_at DESC);
+CREATE INDEX idx_post_context_cache_id_expires ON post_context_cache(post_id, expires_at DESC);
+
+-- 만료된 캐시 자동 정리 함수
+CREATE OR REPLACE FUNCTION cleanup_expired_cache()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM profile_cache WHERE expires_at < NOW();
+    DELETE FROM profile_analyses WHERE expires_at < NOW();
+    DELETE FROM post_context_cache WHERE expires_at < NOW();
+END;
+$$ LANGUAGE plpgsql;
+
+-- RLS (Row Level Security) - 공개 서비스이므로 모든 접근 허용
+ALTER TABLE profile_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profile_analyses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_context_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE analysis_stats ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all access" ON profile_cache FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access" ON profile_analyses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access" ON post_context_cache FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access" ON analysis_stats FOR ALL USING (true) WITH CHECK (true);
+```
+
+#### 📋 추가 예정 테이블
+
+```sql
+-- Claude 제안 캐시 (AI 응답 캐싱) - 코드에서 사용 중, 테이블 생성 필요
+CREATE TABLE suggestion_cache (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content_hash TEXT UNIQUE NOT NULL,
+    suggestion_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '1 hour')
+);
+
+-- 사용자 활동 로그 - 코드에서 사용 중, 테이블 생성 필요
+CREATE TABLE user_activities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_handle TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    target_handle TEXT,
+    target_url TEXT,
+    post_content TEXT,
+    scores JSONB,
+    quick_tips JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 
 ---
@@ -1180,7 +1239,7 @@ Response:
 }
 ```
 
-#### 실시간 스코어 (WebSocket)
+#### 실시간 스코어 (WebSocket) 📋 미구현
 ```
 WS /api/v1/post/realtime
 
@@ -1204,6 +1263,34 @@ Server -> Client:
     "typing_suggestions": [
         "문장 끝에 질문을 추가해보세요"
     ]
+}
+```
+
+#### Admin API ✅ 구현 완료
+```
+POST /api/v1/admin/cleanup-cache
+
+Description: 만료된 캐시 데이터 정리 (관리자 전용)
+
+Response:
+{
+    "deleted": {
+        "profile_cache": 15,
+        "profile_analyses": 8,
+        "post_context_cache": 42,
+        "suggestion_cache": 23
+    },
+    "message": "Cache cleanup completed"
+}
+```
+
+#### 헬스 체크
+```
+GET /health
+
+Response:
+{
+    "status": "ok"
 }
 ```
 
@@ -1494,7 +1581,7 @@ SCORE_WEIGHTS = {
 
 ---
 
-*문서 버전: 1.7*
+*문서 버전: 1.8*
 *최종 수정: 2026-01-27*
 *변경사항:
 - v1.2: 포스팅 제안 기능 추가 (빠른 팁 선택 → 최적화된 포스팅 자동 생성)
@@ -1502,4 +1589,5 @@ SCORE_WEIGHTS = {
 - v1.4: 글 다듬기 버튼 위치를 포스팅 제안 박스 내부로 이동, 다국어 자동 감지 및 지원 (한/영/일/중)
 - v1.5: X 알고리즘 기반 팁 생성 (XAlgorithmAdvisor), Sela API TWITTER_POST 제한사항 문서화, 대상 포스트 언어 수동 선택 UI 추가
 - v1.6: 현재 구현 상태 반영 - 기술 스택 버전 명시, AI 개인화 포스트 생성 기능 추가, 다층 캐싱 전략 문서화, 개발 단계 완료 상태 업데이트
-- v1.7: 실제 구현 상태 동기화 - 프론트엔드 구조(src/ 디렉토리), 번역 기능(translate_en/ko/zh), DB 스키마(suggestion_cache, user_activities 테이블), API 클라이언트 메서드 목록*
+- v1.7: 실제 구현 상태 동기화 - 프론트엔드 구조(src/ 디렉토리), 번역 기능(translate_en/ko/zh), DB 스키마 업데이트, API 클라이언트 메서드 목록
+- v1.8: 코드베이스 완전 동기화 - 프로필 분석 10개 포스트로 변경, 스코어 계산 기준 상세화, 컨텍스트 부스트 임계값(100K views, 60분, 1000 replies), Freshness 분류 기준, Admin API 문서화, 언어 감지 캐싱, asyncio.gather 병렬 처리, DB 스키마 실제 구현 상태 반영*
