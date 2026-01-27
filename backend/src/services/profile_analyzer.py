@@ -95,17 +95,20 @@ class ProfileAnalyzer:
 
         # Normalize engagement rate to 0-100 scale
         # Typical engagement rate is 0.01-0.05 (1-5%)
-        engagement_normalized = min(100, features.avg_engagement_rate * 2000)
+        # Ensure minimum 3% base rate to prevent score collapse
+        effective_engagement_rate = max(features.avg_engagement_rate, 0.03)
+        engagement_normalized = min(100, effective_engagement_rate * 2000)
 
         # Reach: Based on average views
         # Normalize assuming 10K views is baseline "good"
-        reach = min(100, (features.avg_views / 10000) * 50 + 25)
+        # Ensure minimum score of 10
+        reach = max(10, min(100, (features.avg_views / 10000) * 50 + 25))
 
-        # Engagement: Direct from engagement rate
-        engagement = engagement_normalized
+        # Engagement: Direct from engagement rate with minimum of 5
+        engagement = max(5, engagement_normalized)
 
-        # Virality: Based on retweet ratio and average retweets
-        virality = min(100, (features.avg_retweets / 100) * 30 + features.retweet_ratio * 30)
+        # Virality: Based on retweet ratio and average retweets with minimum of 5
+        virality = max(5, min(100, (features.avg_retweets / 100) * 30 + features.retweet_ratio * 30))
 
         # Quality: Based on consistency and low retweet ratio (more original content)
         quality = features.engagement_consistency * 50 + (1 - features.retweet_ratio) * 30 + 20
