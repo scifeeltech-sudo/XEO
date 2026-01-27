@@ -391,18 +391,32 @@ class SelaAPIClient:
                 pass  # Fall through to profile scrape
 
         # Strategy 2: Fetch profile and find the tweet
-        # Try with higher post count to find older tweets
-        for post_count in [50, 100, 200]:
-            response = await self.get_twitter_profile(username, post_count=post_count)
+        # Try multiple post counts in parallel for speed
+        import asyncio
 
+        async def find_tweet_in_profile(post_count: int) -> TweetData | None:
+            response = await self.get_twitter_profile(username, post_count=post_count)
             if response.profile:
                 for tweet in response.profile.tweets:
                     if tweet.tweet_id == tweet_id:
                         return tweet
+            return None
 
-                # If we got fewer tweets than requested, no point trying more
-                if len(response.profile.tweets) < post_count:
-                    break
+        # Start with smallest request, then try larger ones in parallel
+        result = await find_tweet_in_profile(50)
+        if result:
+            return result
+
+        # If not found in 50, try 100 and 200 in parallel
+        results = await asyncio.gather(
+            find_tweet_in_profile(100),
+            find_tweet_in_profile(200),
+            return_exceptions=True
+        )
+
+        for r in results:
+            if isinstance(r, TweetData):
+                return r
 
         return None
 
