@@ -71,6 +71,16 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 | **Quality** | 일관성 및 오리지널 콘텐츠 비율 | - |
 | **Longevity** | 미디어 사용률, 지속적 참여 | 미디어 비율 높을수록 + |
 
+#### 스코어 최소 임계값 ✅ v1.10
+
+스코어가 0으로 붕괴되는 것을 방지하기 위한 최소값 설정:
+
+| 항목 | 최소값 | 설명 |
+|------|--------|------|
+| base_engagement | 3% | 기본 참여율 최소값 |
+| p_favorite, p_reply | 0.01 | Engagement 팩터 최소값 |
+| p_repost, p_quote, p_share | 0.005 | Virality 팩터 최소값 |
+
 #### 출력
 - 5각형 레이더 차트로 시각화된 프로필 점수
 - 각 영역별 상세 분석 리포트
@@ -1305,6 +1315,18 @@ Response:
 }
 ```
 
+##### 키워드 기반 타겟 스코어 감지 ✅ v1.10
+
+팁 설명에서 키워드를 분석하여 올바른 스코어 카테고리에 개선 효과를 매핑:
+
+| 타겟 스코어 | 감지 키워드 |
+|------------|------------|
+| Virality | virality, viral, repost, quote, share |
+| Reach | reach, hashtag, discover, visibility |
+| Quality | quality, insight, value, depth |
+| Longevity | longevity, dwell, evergreen, lasting |
+| Engagement | (기본값) favorite, reply, engagement |
+
 #### 콘텐츠 최적화
 ```
 POST /api/v1/post/optimize
@@ -1698,7 +1720,7 @@ SCORE_WEIGHTS = {
 
 ---
 
-*문서 버전: 1.9*
+*문서 버전: 1.10*
 *최종 수정: 2026-01-28*
 *변경사항:
 - v1.2: 포스팅 제안 기능 추가 (빠른 팁 선택 → 최적화된 포스팅 자동 생성)
@@ -1708,4 +1730,5 @@ SCORE_WEIGHTS = {
 - v1.6: 현재 구현 상태 반영 - 기술 스택 버전 명시, AI 개인화 포스트 생성 기능 추가, 다층 캐싱 전략 문서화, 개발 단계 완료 상태 업데이트
 - v1.7: 실제 구현 상태 동기화 - 프론트엔드 구조(src/ 디렉토리), 번역 기능(translate_en/ko/zh), DB 스키마 업데이트, API 클라이언트 메서드 목록
 - v1.8: 코드베이스 완전 동기화 - 프로필 분석 10개 포스트로 변경, 스코어 계산 기준 상세화, 컨텍스트 부스트 임계값(100K views, 60분, 1000 replies), Freshness 분류 기준, Admin API 문서화, 언어 감지 캐싱, asyncio.gather 병렬 처리, DB 스키마 실제 구현 상태 반영
-- v1.9: UI/UX 고도화 - 페르소나 시스템(4종), AI 대상 포스트 해석, 개선된 점수 시각화(초록색), PostEditor 3행 레이아웃, 병렬 Polish API, 프로필 캐싱(sessionStorage), /personas API 엔드포인트 추가*
+- v1.9: UI/UX 고도화 - 페르소나 시스템(4종), AI 대상 포스트 해석, 개선된 점수 시각화(초록색), PostEditor 3행 레이아웃, 병렬 Polish API, 프로필 캐싱(sessionStorage), /personas API 엔드포인트 추가
+- v1.10: 스코어 안정성 개선 - 스코어 최소 임계값 설정(engagement 3%, virality 0.5%), 키워드 기반 팁 타겟 스코어 감지(virality/reach/quality/longevity 키워드 매핑)*
