@@ -1,5 +1,6 @@
 """Post analysis API routes."""
 
+import re
 from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
@@ -12,6 +13,18 @@ router = APIRouter()
 predictor = ScorePredictor()
 optimizer = ContentOptimizer()
 cache = SupabaseCache()
+
+
+def extract_username_from_url(url: Optional[str]) -> Optional[str]:
+    """Extract username from X/Twitter post URL."""
+    if not url:
+        return None
+    # URL format: https://x.com/username/status/tweet_id
+    # or https://twitter.com/username/status/tweet_id
+    match = re.search(r"(?:x\.com|twitter\.com)/([^/]+)/status/", url)
+    if match:
+        return match.group(1)
+    return None
 
 
 class PostAnalyzeRequest(BaseModel):
@@ -124,7 +137,12 @@ async def analyze_post(request: PostAnalyzeRequest, background_tasks: Background
             )
 
         # Log user activity in background
-        target_handle = result.context.target_post.username if result.context else None
+        # Get target_handle from context, or extract from URL as fallback
+        target_handle = (
+            result.context.target_post.username
+            if result.context
+            else extract_username_from_url(request.target_post_url)
+        )
         background_tasks.add_task(
             cache.log_user_activity,
             user_handle=request.username,
