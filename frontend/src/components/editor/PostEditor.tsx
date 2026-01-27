@@ -323,9 +323,6 @@ export function PostEditor({ username }: PostEditorProps) {
                       {targetPostContext.author.verified && (
                         <span className="text-blue-400">✓</span>
                       )}
-                      <span className="text-gray-500 text-sm">
-                        • {targetPostContext.author.followers_count.toLocaleString()} followers
-                      </span>
                     </div>
                     <p className="text-gray-300 mb-3">
                       {targetPostContext.content.text.length > 200
