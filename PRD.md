@@ -610,27 +610,56 @@ AI가 대상 포스트를 분석하여 적절한 응답 생성:
 **2. Open Graph (OG) 이미지 생성**
 - `/api/og/[username]` 엔드포인트에서 동적 이미지 생성
 - Edge Runtime 사용 (빠른 응답)
-- 오각형 레이더 차트 SVG 렌더링
+- 오각형 레이더 차트 SVG 렌더링 (꼭지점에 스코어 라벨)
 - 점수 및 유저네임 표시
 - Twitter Card 지원 (summary_large_image)
+
+**성능 최적화 (v1.13):**
+- API 타임아웃: 10초 (안정성 향상)
+- 캐시 헤더: `Cache-Control: public, max-age=3600, stale-while-revalidate=86400`
+- Vercel Edge 캐싱으로 반복 요청 즉시 응답
 
 ```
 OG 이미지 레이아웃 (1200x630):
 ┌────────────────────────────────────────────────────┐
-│  ┌──────────┐                                      │
-│  │ Pentagon │    @username                         │
-│  │  Chart   │    X Score Optimizer                 │
-│  │  (SVG)   │                                      │
-│  └──────────┘    [Reach 85] [Engage 72] [Viral 90] │
-│                  [Quality 78] [Long 65]            │
+│           Reach                                    │
+│  ┌──────────┐       @username                      │
+│  │ Pentagon │       X Profile Analysis             │
+│  │  Chart   │                                      │
+│  │  (SVG)   │       ● Reach        85              │
+│  └──────────┘       ● Engagement   72              │
+│ Longevity  Engagement ● Virality   90              │
+│                       ● Quality    78              │
+│  Quality   Virality   ● Longevity  65              │
 │                                                    │
-│                            xeo.selanetwork.io      │
+│                       Average      78              │
 └────────────────────────────────────────────────────┘
 ```
 
 **3. 공유 링크 방문자 UI**
 - 공유된 링크로 방문 시 "Check your X" 버튼 표시
 - 다른 사용자가 자신의 프로필을 분석하도록 유도
+
+**4. 모바일 반응형 레이아웃 (v1.13)**
+- 프로필 페이지 헤더 모바일 최적화
+- 작은 화면에서 버튼들이 두 번째 줄로 이동
+- 폰트 크기 및 패딩 반응형 조정
+
+```
+모바일 헤더 레이아웃:
+┌─────────────────────────┐
+│ ← @username             │  ← 첫째 줄
+│   Profile Analysis      │
+├─────────────────────────┤
+│ 🔄 📤 [Check your X]    │  ← 둘째 줄: 버튼들
+└─────────────────────────┘
+
+데스크탑 헤더 레이아웃:
+┌────────────────────────────────────────────┐
+│ ← @username              🔄 📤 [Check your X] │
+│   Profile Analysis                          │
+└────────────────────────────────────────────┘
+```
 
 #### 메타데이터 설정
 ```typescript
@@ -1838,7 +1867,7 @@ SCORE_WEIGHTS = {
 
 ---
 
-*문서 버전: 1.12*
+*문서 버전: 1.13*
 *최종 수정: 2026-01-28*
 *변경사항:
 - v1.2: 포스팅 제안 기능 추가 (빠른 팁 선택 → 최적화된 포스팅 자동 생성)
@@ -1851,4 +1880,5 @@ SCORE_WEIGHTS = {
 - v1.9: UI/UX 고도화 - 페르소나 시스템(4종), AI 대상 포스트 해석, 개선된 점수 시각화(초록색), PostEditor 3행 레이아웃, 병렬 Polish API, 프로필 캐싱(sessionStorage), /personas API 엔드포인트 추가
 - v1.10: 스코어 안정성 개선 - 스코어 최소 임계값 설정(engagement 3%, virality 0.5%), 키워드 기반 팁 타겟 스코어 감지(virality/reach/quality/longevity 키워드 매핑)
 - v1.11: 프로필 분석 개선 - 프로필 스코어 최소값(Reach 10, Engagement/Virality 5), 새로고침 버튼(캐시 무시하고 최신 데이터 가져오기)
-- v1.12: SNS 공유 및 브랜딩 - 프로필 요약 기능(브랜드 감지 및 강점 분석), OG 이미지 동적 생성(오각형 레이더 차트), 링크 복사 버튼, 공유 링크 방문자 UI, Powered by Sela Network 브랜딩, 백엔드 인메모리 캐싱(1시간 TTL)*
+- v1.12: SNS 공유 및 브랜딩 - 프로필 요약 기능(브랜드 감지 및 강점 분석), OG 이미지 동적 생성(오각형 레이더 차트), 링크 복사 버튼, 공유 링크 방문자 UI, Powered by Sela Network 브랜딩, 백엔드 인메모리 캐싱(1시간 TTL)
+- v1.13: 성능 및 UX 개선 - OG 이미지 캐싱(1시간 브라우저/CDN, 24시간 stale-while-revalidate), API 타임아웃 증가(5초→10초), 모바일 반응형 헤더 레이아웃, OG 이미지 레이아웃 개선(꼭지점 라벨, 세로 스코어 리스트, Average 표시)*
