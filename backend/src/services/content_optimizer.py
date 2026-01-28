@@ -451,9 +451,6 @@ Return ONLY the optimized content:"""
         if tweet.views_count > 1000000:
             tips.append("🎯 Large account post - high exposure expected")
 
-        # Generate interpretation for abstract/complex posts
-        interpretation = await self._generate_interpretation(display_content)
-
         # Handle retweets and quote tweets - get the actual content
         display_content = tweet.content
         if tweet.is_retweet and not tweet.content:
@@ -462,6 +459,9 @@ Return ONLY the optimized content:"""
         elif tweet.is_quote and tweet.quote_content:
             # Quote tweet - combine user's commentary with quoted content
             display_content = f"{tweet.content}\n\n[Quoted]: {tweet.quote_content}"
+
+        # Generate interpretation for abstract/complex posts
+        interpretation = await self._generate_interpretation(display_content)
 
         return {
             "post_id": tweet.tweet_id,
