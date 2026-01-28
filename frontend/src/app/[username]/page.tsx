@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { ProfileAnalysis } from "@/types/api";
@@ -10,13 +10,18 @@ import { RadarChartLazy as RadarChart } from "@/components/charts/RadarChartLazy
 
 export default function ProfilePage() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const username = params.username as string;
-  const isSharedView = searchParams.get("shared") === "true";
+  const [isSharedView, setIsSharedView] = useState(false);
   const [analysis, setAnalysis] = useState<ProfileAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  // Check for shared parameter on mount (client-side only)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    setIsSharedView(urlParams.get("shared") === "true");
+  }, []);
 
   const fetchAnalysis = useCallback(async (useCache = true) => {
     const cacheKey = `profile_analysis_${username}`;
