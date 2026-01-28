@@ -143,8 +143,8 @@ export default function ProfilePage() {
     <main className="min-h-screen bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
             <Link
               href="/"
               className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
@@ -154,10 +154,12 @@ export default function ProfilePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-white">@{username}</h1>
-              <p className="text-gray-400">Profile Analysis Results</p>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-white truncate">@{username}</h1>
+              <p className="text-gray-400 text-sm sm:text-base">Profile Analysis Results</p>
             </div>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={handleRefresh}
               disabled={loading}
@@ -186,22 +188,22 @@ export default function ProfilePage() {
                 </svg>
               )}
             </button>
+            {isSharedView ? (
+              <Link
+                href="/"
+                className="px-4 py-2 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-sm sm:text-base whitespace-nowrap"
+              >
+                Check your X
+              </Link>
+            ) : (
+              <Link
+                href={`/${username}/compose`}
+                className="px-4 py-2 sm:px-6 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-sm sm:text-base whitespace-nowrap"
+              >
+                Compose Post
+              </Link>
+            )}
           </div>
-          {isSharedView ? (
-            <Link
-              href="/"
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              Check your X
-            </Link>
-          ) : (
-            <Link
-              href={`/${username}/compose`}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              Compose Post
-            </Link>
-          )}
         </div>
 
         {/* Profile Summary */}
