@@ -90,8 +90,32 @@ X(구 Twitter)의 공개된 추천 알고리즘을 기반으로 사용자의 포
 | Engagement 스코어 | 5점 | 참여도 최소 점수 |
 | Virality 스코어 | 5점 | 바이럴성 최소 점수 |
 
+#### 프로필 요약 (Summary) ✅ v1.12
+
+트윗 내용 분석을 통해 2줄 요약 자동 생성:
+
+**첫 번째 줄**: 브랜드/회사 정보 또는 계정 특성
+- 트윗에서 자주 언급되는 브랜드/회사명 추출 (@멘션, #해시태그, 대문자 단어)
+- 브랜드 정규화 매핑 (예: sela → Sela Network, grok → Grok)
+- 브랜드 미감지 시 Reach 점수 기반 설명
+
+**두 번째 줄**: 강점 분석
+- 5가지 점수 중 상위 2개 강점 표시
+- 예: "Key strengths: viral potential and consistent quality content."
+
+```python
+BRAND_ALIASES = {
+    "sela": "Sela Network",
+    "openai": "OpenAI",
+    "tesla": "Tesla",
+    "grok": "Grok",
+    # ... 주요 브랜드 매핑
+}
+```
+
 #### 출력
 - 5각형 레이더 차트로 시각화된 프로필 점수
+- **2줄 프로필 요약** (브랜드/강점 기반)
 - 각 영역별 상세 분석 리포트
 
 ---
@@ -568,6 +592,70 @@ AI가 대상 포스트를 분석하여 적절한 응답 생성:
 **3. AI 기반 콘텐츠 리라이팅**
 - 선택한 스코어에 최적화된 문구로 자동 변환
 - 여러 버전 제안 (보수적/적극적/실험적)
+
+---
+
+### 3.4 SNS 공유 기능 (Social Sharing) ✅ v1.12
+
+#### 기능 설명
+프로필 분석 결과를 SNS에 쉽게 공유할 수 있는 기능
+
+#### 구현 내용
+
+**1. 링크 복사 버튼**
+- 프로필 분석 페이지 헤더에 공유 버튼 추가
+- 클릭 시 현재 URL을 클립보드에 복사
+- "Copied!" 피드백 표시 (1초간)
+
+**2. Open Graph (OG) 이미지 생성**
+- `/api/og/[username]` 엔드포인트에서 동적 이미지 생성
+- Edge Runtime 사용 (빠른 응답)
+- 오각형 레이더 차트 SVG 렌더링
+- 점수 및 유저네임 표시
+- Twitter Card 지원 (summary_large_image)
+
+```
+OG 이미지 레이아웃 (1200x630):
+┌────────────────────────────────────────────────────┐
+│  ┌──────────┐                                      │
+│  │ Pentagon │    @username                         │
+│  │  Chart   │    X Score Optimizer                 │
+│  │  (SVG)   │                                      │
+│  └──────────┘    [Reach 85] [Engage 72] [Viral 90] │
+│                  [Quality 78] [Long 65]            │
+│                                                    │
+│                            xeo.selanetwork.io      │
+└────────────────────────────────────────────────────┘
+```
+
+**3. 공유 링크 방문자 UI**
+- 공유된 링크로 방문 시 "Check your X" 버튼 표시
+- 다른 사용자가 자신의 프로필을 분석하도록 유도
+
+#### 메타데이터 설정
+```typescript
+// layout.tsx
+openGraph: {
+  title: `@${username} - Profile Analysis`,
+  description: `Check out @${username}'s X profile analysis`,
+  images: [`${baseUrl}/api/og/${username}`],
+  type: "website",
+},
+twitter: {
+  card: "summary_large_image",
+  title: `@${username} - Profile Analysis`,
+  images: [`${baseUrl}/api/og/${username}`],
+}
+```
+
+---
+
+### 3.5 브랜딩 (Branding) ✅ v1.12
+
+#### Powered by Sela Network
+- 랜딩 페이지 하단에 "Powered by Sela Network" 표시
+- Sela Network 로고 (GitHub 아바타 이미지)
+- 클릭 시 selanetwork.io로 이동 (새 탭)
 
 ---
 
@@ -1730,7 +1818,7 @@ SCORE_WEIGHTS = {
 
 ---
 
-*문서 버전: 1.11*
+*문서 버전: 1.12*
 *최종 수정: 2026-01-28*
 *변경사항:
 - v1.2: 포스팅 제안 기능 추가 (빠른 팁 선택 → 최적화된 포스팅 자동 생성)
@@ -1742,4 +1830,5 @@ SCORE_WEIGHTS = {
 - v1.8: 코드베이스 완전 동기화 - 프로필 분석 10개 포스트로 변경, 스코어 계산 기준 상세화, 컨텍스트 부스트 임계값(100K views, 60분, 1000 replies), Freshness 분류 기준, Admin API 문서화, 언어 감지 캐싱, asyncio.gather 병렬 처리, DB 스키마 실제 구현 상태 반영
 - v1.9: UI/UX 고도화 - 페르소나 시스템(4종), AI 대상 포스트 해석, 개선된 점수 시각화(초록색), PostEditor 3행 레이아웃, 병렬 Polish API, 프로필 캐싱(sessionStorage), /personas API 엔드포인트 추가
 - v1.10: 스코어 안정성 개선 - 스코어 최소 임계값 설정(engagement 3%, virality 0.5%), 키워드 기반 팁 타겟 스코어 감지(virality/reach/quality/longevity 키워드 매핑)
-- v1.11: 프로필 분석 개선 - 프로필 스코어 최소값(Reach 10, Engagement/Virality 5), 새로고침 버튼(캐시 무시하고 최신 데이터 가져오기)*
+- v1.11: 프로필 분석 개선 - 프로필 스코어 최소값(Reach 10, Engagement/Virality 5), 새로고침 버튼(캐시 무시하고 최신 데이터 가져오기)
+- v1.12: SNS 공유 및 브랜딩 - 프로필 요약 기능(브랜드 감지 및 강점 분석), OG 이미지 동적 생성(오각형 레이더 차트), 링크 복사 버튼, 공유 링크 방문자 UI, Powered by Sela Network 브랜딩, 백엔드 인메모리 캐싱(1시간 TTL)*
