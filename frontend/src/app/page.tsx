@@ -21,8 +21,12 @@ export default function Home() {
         <h1 className="text-5xl font-bold text-white mb-4">
           X Score Optimizer
         </h1>
-        <p className="text-xl text-gray-400 mb-12">
+        <p className="text-xl text-gray-400 mb-4">
           Predict and optimize your post scores based on X algorithm
+        </p>
+
+        <p className="text-gray-300 mb-8">
+          Free to use, no sign-up required
         </p>
 
         <form onSubmit={handleSubmit} className="flex gap-4 justify-center">
@@ -45,10 +49,6 @@ export default function Home() {
             Analyze
           </button>
         </form>
-
-        <p className="mt-8 text-gray-500 text-sm">
-          Free to use, no sign-up required
-        </p>
       </div>
 
       {/* Powered by Sela Network */}
