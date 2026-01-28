@@ -14,6 +14,7 @@ export default function ProfilePage() {
   const [analysis, setAnalysis] = useState<ProfileAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   const fetchAnalysis = useCallback(async (useCache = true) => {
     const cacheKey = `profile_analysis_${username}`;
@@ -56,6 +57,24 @@ export default function ProfilePage() {
     fetchAnalysis(false); // Skip cache, force re-fetch
   };
 
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea");
+      textArea.value = window.location.href;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    }
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-900 p-8">
@@ -93,8 +112,17 @@ export default function ProfilePage() {
     <main className="min-h-screen bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              title="Back to home"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </Link>
             <div>
               <h1 className="text-3xl font-bold text-white">@{username}</h1>
               <p className="text-gray-400">Profile Analysis Results</p>
@@ -109,6 +137,24 @@ export default function ProfilePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
+            <button
+              onClick={handleCopyLink}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1"
+              title="Copy link to share"
+            >
+              {copied ? (
+                <>
+                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-sm text-green-400">Copied!</span>
+                </>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+              )}
+            </button>
           </div>
           <Link
             href={`/${username}/compose`}
@@ -117,6 +163,15 @@ export default function ProfilePage() {
             Compose Post
           </Link>
         </div>
+
+        {/* Profile Summary */}
+        {analysis.summary && (
+          <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 mb-8">
+            <div className="text-gray-300 leading-relaxed whitespace-pre-line">
+              {analysis.summary}
+            </div>
+          </div>
+        )}
 
         {/* Score Chart */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-8">
