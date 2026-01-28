@@ -164,6 +164,11 @@ export async function GET(
               {Math.round(scoreArr.reduce((a, b) => a + b, 0) / 5)}
             </span>
           </div>
+
+          {/* Footer - X Score Optimizer */}
+          <div style={{ display: "flex", marginTop: "auto", paddingTop: "20px" }}>
+            <span style={{ fontSize: "28px", fontWeight: "bold", color: "#3B82F6" }}>X Score Optimizer</span>
+          </div>
         </div>
       </div>
     ),
