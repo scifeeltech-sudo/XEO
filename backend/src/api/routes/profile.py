@@ -31,6 +31,7 @@ class RecommendationResponse(BaseModel):
 
 class ProfileAnalysisResponse(BaseModel):
     username: str
+    summary: str
     scores: ProfileScores
     insights: list[InsightResponse]
     recommendations: list[RecommendationResponse]
@@ -44,6 +45,7 @@ async def analyze_profile(username: str):
 
         return ProfileAnalysisResponse(
             username=result.username,
+            summary=result.summary,
             scores=ProfileScores(**result.scores.to_dict()),
             insights=[
                 InsightResponse(

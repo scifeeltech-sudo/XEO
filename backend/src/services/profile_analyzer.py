@@ -1,5 +1,7 @@
 """Profile analysis service."""
 
+import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Optional
 
@@ -10,6 +12,70 @@ from src.engine import (
     ProfileFeatures,
 )
 from src.services.sela_api_client import SelaAPIClient, ProfileData
+
+
+# Brand name normalization mapping (lowercase key -> display name)
+BRAND_ALIASES = {
+    "sela": "Sela Network",
+    "selanetwork": "Sela Network",
+    "sela_network": "Sela Network",
+    "openai": "OpenAI",
+    "chatgpt": "OpenAI",
+    "gpt": "OpenAI",
+    "tesla": "Tesla",
+    "tsla": "Tesla",
+    "spacex": "SpaceX",
+    "x": "X",
+    "twitter": "X",
+    "google": "Google",
+    "anthropic": "Anthropic",
+    "claude": "Anthropic",
+    "meta": "Meta",
+    "facebook": "Meta",
+    "instagram": "Meta",
+    "apple": "Apple",
+    "microsoft": "Microsoft",
+    "msft": "Microsoft",
+    "amazon": "Amazon",
+    "aws": "Amazon",
+    "nvidia": "NVIDIA",
+    "nvda": "NVIDIA",
+    "bitcoin": "Bitcoin",
+    "btc": "Bitcoin",
+    "ethereum": "Ethereum",
+    "eth": "Ethereum",
+    "solana": "Solana",
+    "sol": "Solana",
+    "grok": "Grok",
+    "grokipedia": "Grok",
+}
+
+# Common words to exclude from brand detection
+STOP_WORDS = {
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should", "may", "might", "must", "shall", "can", "need",
+    "this", "that", "these", "those", "i", "you", "he", "she", "it", "we",
+    "they", "what", "which", "who", "whom", "when", "where", "why", "how",
+    "all", "each", "every", "both", "few", "more", "most", "other", "some",
+    "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too",
+    "very", "just", "also", "now", "new", "like", "get", "got", "go", "going",
+    "make", "made", "think", "know", "see", "come", "take", "want", "look",
+    "use", "find", "give", "tell", "work", "call", "try", "ask", "seem",
+    "feel", "leave", "put", "mean", "keep", "let", "begin", "show", "hear",
+    "play", "run", "move", "live", "believe", "hold", "bring", "happen",
+    "write", "provide", "sit", "stand", "lose", "pay", "meet", "include",
+    "continue", "set", "learn", "change", "lead", "understand", "watch",
+    "follow", "stop", "create", "speak", "read", "allow", "add", "spend",
+    "grow", "open", "walk", "win", "offer", "remember", "love", "consider",
+    "appear", "buy", "wait", "serve", "die", "send", "expect", "build",
+    "stay", "fall", "cut", "reach", "kill", "remain", "via", "rt", "dm",
+    "lol", "lmao", "omg", "wtf", "idk", "imo", "imho", "tbh", "fyi",
+    "today", "tomorrow", "yesterday", "week", "month", "year", "time",
+    "day", "night", "morning", "evening", "people", "man", "woman",
+    "child", "world", "life", "hand", "part", "place", "case", "thing",
+}
 
 
 @dataclass
@@ -36,6 +102,7 @@ class ProfileAnalysisResult:
     features: ProfileFeatures
     insights: list[Insight]
     recommendations: list[Recommendation]
+    summary: str
     raw_data: Optional[ProfileData] = None
 
 
@@ -81,12 +148,16 @@ class ProfileAnalyzer:
         # Generate recommendations
         recommendations = self._generate_recommendations(features, scores)
 
+        # Generate summary
+        summary = self._generate_summary(profile, features, scores)
+
         return ProfileAnalysisResult(
             username=username,
             scores=scores,
             features=features,
             insights=insights,
             recommendations=recommendations,
+            summary=summary,
             raw_data=profile,
         )
 
@@ -223,3 +294,114 @@ class ProfileAnalyzer:
             ))
 
         return recommendations
+
+    def _extract_brand_mentions(
+        self,
+        profile: ProfileData,
+        min_count: int = 2,
+    ) -> list[tuple[str, int]]:
+        """Extract frequently mentioned brands/companies from tweets.
+
+        Args:
+            profile: Profile data with tweets
+            min_count: Minimum mention count to include
+
+        Returns:
+            List of (brand_name, count) tuples, sorted by count descending
+        """
+        if not profile.tweets:
+            return []
+
+        word_counts: Counter[str] = Counter()
+
+        for tweet in profile.tweets:
+            # Skip retweets to focus on original content
+            if tweet.is_retweet:
+                continue
+
+            content = tweet.content
+
+            # Extract @mentions (likely company accounts)
+            mentions = re.findall(r'@(\w+)', content)
+            for mention in mentions:
+                # Skip common bot/service accounts
+                if mention.lower() not in {"twitter", "x", "youtube", "instagram"}:
+                    word_counts[mention] += 2  # Weight mentions higher
+
+            # Extract #hashtags (potential brand/topic tags)
+            hashtags = re.findall(r'#(\w+)', content)
+            for tag in hashtags:
+                if len(tag) > 2 and tag.lower() not in STOP_WORDS:
+                    word_counts[tag] += 1
+
+            # Extract capitalized words (potential brand names)
+            # Match words that start with uppercase and have 2+ chars
+            cap_words = re.findall(r'\b([A-Z][a-zA-Z]{1,})\b', content)
+            for word in cap_words:
+                lower = word.lower()
+                if lower not in STOP_WORDS and len(word) > 2:
+                    word_counts[word] += 1
+
+        # Normalize brand names and combine counts
+        normalized_counts: Counter[str] = Counter()
+        for word, count in word_counts.items():
+            lower = word.lower()
+            # Use normalized name if exists, otherwise use original
+            normalized_name = BRAND_ALIASES.get(lower, word)
+            normalized_counts[normalized_name] += count
+
+        # Filter by minimum count and return sorted
+        filtered = [(word, count) for word, count in normalized_counts.items() if count >= min_count]
+        return sorted(filtered, key=lambda x: x[1], reverse=True)
+
+    def _generate_summary(
+        self,
+        profile: ProfileData,
+        features: ProfileFeatures,
+        scores: PentagonScores,
+    ) -> str:
+        """Generate a 2-line summary of the profile.
+
+        Args:
+            profile: Profile data with tweets
+            features: Extracted profile features
+            scores: Calculated pentagon scores
+
+        Returns:
+            2-line summary string
+        """
+        lines = []
+
+        # Line 1: Brand/topic + account characteristics
+        brand_mentions = self._extract_brand_mentions(profile, min_count=2)
+
+        if brand_mentions:
+            # Use top mentioned brand
+            top_brand = brand_mentions[0][0]
+            lines.append(f"An account primarily focused on {top_brand}-related content.")
+        else:
+            # Fallback to reach score-based description
+            if scores.reach >= 70:
+                lines.append("A high-reach account with strong visibility.")
+            elif scores.reach >= 40:
+                lines.append("An active account with moderate reach.")
+            else:
+                lines.append("A growing account building its audience.")
+
+        # Line 2: Describe top 2 strengths based on scores
+        score_dict = scores.to_dict()
+        sorted_scores = sorted(score_dict.items(), key=lambda x: x[1], reverse=True)
+        top_two = sorted_scores[:2]
+
+        strength_descriptions = {
+            "reach": "strong visibility",
+            "engagement": "high audience interaction",
+            "virality": "viral potential",
+            "quality": "consistent quality content",
+            "longevity": "lasting content impact",
+        }
+
+        strengths = [strength_descriptions[s[0]] for s in top_two]
+        lines.append(f"Key strengths: {strengths[0]} and {strengths[1]}.")
+
+        return "\n".join(lines)

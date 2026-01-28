@@ -20,6 +20,7 @@ export interface Recommendation {
 
 export interface ProfileAnalysis {
   username: string;
+  summary: string;
   scores: PentagonScores;
   insights: Insight[];
   recommendations: Recommendation[];
