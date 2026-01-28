@@ -1,5 +1,8 @@
 """Profile analysis API routes."""
 
+import time
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -7,6 +10,25 @@ from src.services.profile_analyzer import ProfileAnalyzer
 
 router = APIRouter()
 analyzer = ProfileAnalyzer()
+
+# Simple in-memory cache with TTL
+_cache: dict[str, tuple[Any, float]] = {}
+CACHE_TTL_SECONDS = 3600  # 1 hour
+
+
+def get_cached(key: str) -> Any | None:
+    """Get cached value if not expired."""
+    if key in _cache:
+        value, expires_at = _cache[key]
+        if time.time() < expires_at:
+            return value
+        del _cache[key]
+    return None
+
+
+def set_cached(key: str, value: Any) -> None:
+    """Set cache value with TTL."""
+    _cache[key] = (value, time.time() + CACHE_TTL_SECONDS)
 
 
 class ProfileScores(BaseModel):
@@ -38,12 +60,20 @@ class ProfileAnalysisResponse(BaseModel):
 
 
 @router.get("/{username}/analyze", response_model=ProfileAnalysisResponse)
-async def analyze_profile(username: str):
+async def analyze_profile(username: str, refresh: bool = False):
     """Analyze a user's X profile."""
+    cache_key = f"profile:{username.lower()}"
+
+    # Check cache first (unless refresh requested)
+    if not refresh:
+        cached = get_cached(cache_key)
+        if cached is not None:
+            return cached
+
     try:
         result = await analyzer.analyze(username)
 
-        return ProfileAnalysisResponse(
+        response = ProfileAnalysisResponse(
             username=result.username,
             summary=result.summary,
             scores=ProfileScores(**result.scores.to_dict()),
@@ -64,6 +94,11 @@ async def analyze_profile(username: str):
                 for r in result.recommendations
             ],
         )
+
+        # Cache the response
+        set_cached(cache_key, response)
+
+        return response
     except ValueError as e:
         error_msg = str(e)
         if "offline" in error_msg.lower() or "failed to fetch" in error_msg.lower():

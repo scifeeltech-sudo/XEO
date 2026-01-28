@@ -38,7 +38,8 @@ export default function ProfilePage() {
     setError(null);
 
     try {
-      const result = await api.analyzeProfile(username);
+      // Pass refresh=true to backend when bypassing cache
+      const result = await api.analyzeProfile(username, !useCache);
       setAnalysis(result);
       // Cache the result in sessionStorage
       sessionStorage.setItem(cacheKey, JSON.stringify(result));
@@ -58,20 +59,40 @@ export default function ProfilePage() {
   };
 
   const handleCopyLink = async () => {
+    const url = window.location.href;
+
+    // Try modern clipboard API first
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1000);
+        return;
+      } catch (err) {
+        console.error("Clipboard API failed:", err);
+      }
+    }
+
+    // Fallback for non-secure contexts or older browsers
+    const textArea = document.createElement("textarea");
+    textArea.value = url;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1000);
-    } catch {
-      // Fallback for older browsers
-      const textArea = document.createElement("textarea");
-      textArea.value = window.location.href;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand("copy");
+      const success = document.execCommand("copy");
+      if (success) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1000);
+      }
+    } catch (err) {
+      console.error("execCommand failed:", err);
+    } finally {
       document.body.removeChild(textArea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1000);
     }
   };
 

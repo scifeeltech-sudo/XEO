@@ -21,10 +21,13 @@ class APIClient {
     this.baseUrl = baseUrl;
   }
 
-  async analyzeProfile(username: string): Promise<ProfileAnalysis> {
-    const response = await fetch(
-      `${this.baseUrl}/api/v1/profile/${username}/analyze`
-    );
+  async analyzeProfile(username: string, refresh: boolean = false): Promise<ProfileAnalysis> {
+    const url = new URL(`${this.baseUrl}/api/v1/profile/${username}/analyze`);
+    if (refresh) {
+      url.searchParams.set("refresh", "true");
+    }
+
+    const response = await fetch(url.toString());
 
     if (!response.ok) {
       throw new Error(`Failed to analyze profile: ${response.statusText}`);
