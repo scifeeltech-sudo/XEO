@@ -170,9 +170,14 @@ export function PostEditor({ username }: PostEditorProps) {
       try {
         const context = await api.getPostContext(targetUrl);
         setTargetPostContext(context);
-        // Auto-detect language from target post
-        const lang = detectLanguage(context.content.text);
-        setTargetLanguage(lang as "ko" | "en" | "ja" | "zh");
+        // Check if content is empty (some tweets have no text content)
+        if (!context.content.text || context.content.text.trim() === "") {
+          setTargetFetchError("Post has no text content (may be media-only or emoji). Please select language manually.");
+        } else {
+          // Auto-detect language from target post
+          const lang = detectLanguage(context.content.text);
+          setTargetLanguage(lang as "ko" | "en" | "ja" | "zh");
+        }
       } catch (error) {
         setTargetPostContext(null);
         // Extract error message from API response
