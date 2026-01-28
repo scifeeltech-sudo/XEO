@@ -452,7 +452,16 @@ Return ONLY the optimized content:"""
             tips.append("🎯 Large account post - high exposure expected")
 
         # Generate interpretation for abstract/complex posts
-        interpretation = await self._generate_interpretation(tweet.content)
+        interpretation = await self._generate_interpretation(display_content)
+
+        # Handle retweets and quote tweets - get the actual content
+        display_content = tweet.content
+        if tweet.is_retweet and not tweet.content:
+            # Retweet with no content - this shouldn't happen but handle gracefully
+            display_content = "[Retweet - original content not available]"
+        elif tweet.is_quote and tweet.quote_content:
+            # Quote tweet - combine user's commentary with quoted content
+            display_content = f"{tweet.content}\n\n[Quoted]: {tweet.quote_content}"
 
         return {
             "post_id": tweet.tweet_id,
@@ -464,9 +473,9 @@ Return ONLY the optimized content:"""
                 "verified": False,
             },
             "content": {
-                "text": tweet.content,
+                "text": display_content,
                 "media": [{"type": "image", "url": img} for img in tweet.images],
-                "hashtags": re.findall(r"#(\w+)", tweet.content),
+                "hashtags": re.findall(r"#(\w+)", display_content),
             },
             "metrics": {
                 "likes": tweet.likes_count,
