@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function Home() {
   const [username, setUsername] = useState("");
@@ -49,6 +50,24 @@ export default function Home() {
           Free to use, no sign-up required
         </p>
       </div>
+
+      {/* Powered by Sela Network */}
+      <a
+        href="https://selanetwork.io"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute bottom-8 flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors"
+      >
+        <span className="text-sm">Powered by</span>
+        <Image
+          src="https://avatars.githubusercontent.com/u/177708063?s=200&v=4"
+          alt="Sela Network"
+          width={20}
+          height={20}
+          className="rounded-full"
+        />
+        <span className="text-sm font-medium">Sela Network</span>
+      </a>
     </main>
   );
 }
