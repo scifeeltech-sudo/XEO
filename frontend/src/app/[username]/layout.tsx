@@ -14,25 +14,25 @@ export async function generateMetadata({
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
   return {
-    title: `@${username} - X Score Optimizer`,
-    description: `Profile analysis for @${username} on X Score Optimizer`,
+    title: `@${username} - X Account Analysis`,
+    description: `Check out @${username}'s X Scores.`,
     openGraph: {
-      title: `@${username} - Profile Analysis`,
-      description: `Check out @${username}'s X profile analysis and optimization scores`,
+      title: `@${username} - X Account Analysis`,
+      description: `Check out @${username}'s X Scores.`,
       images: [
         {
           url: `${baseUrl}/api/og/${username}`,
           width: 1200,
           height: 630,
-          alt: `@${username} Profile Analysis`,
+          alt: `@${username} X Account Analysis`,
         },
       ],
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: `@${username} - Profile Analysis`,
-      description: `Check out @${username}'s X profile analysis and optimization scores`,
+      title: `@${username} - X Account Analysis`,
+      description: `Check out @${username}'s X Scores.`,
       images: [`${baseUrl}/api/og/${username}`],
     },
   };
