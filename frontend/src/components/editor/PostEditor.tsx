@@ -170,9 +170,9 @@ export function PostEditor({ username }: PostEditorProps) {
       try {
         const context = await api.getPostContext(targetUrl);
         setTargetPostContext(context);
-        // Check if content is empty (some tweets have no text content)
+        // Check if content is empty (Article posts or special formats)
         if (!context.content.text || context.content.text.trim() === "") {
-          setTargetFetchError("Post has no text content (may be media-only or emoji). Please select language manually.");
+          setTargetFetchError("Cannot fetch this post type (may be an X Article or special format). Try a regular tweet URL.");
         } else {
           // Auto-detect language from target post
           const lang = detectLanguage(context.content.text);
