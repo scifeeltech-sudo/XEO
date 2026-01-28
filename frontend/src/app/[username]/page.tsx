@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { ProfileAnalysis } from "@/types/api";
@@ -10,7 +10,9 @@ import { RadarChartLazy as RadarChart } from "@/components/charts/RadarChartLazy
 
 export default function ProfilePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const username = params.username as string;
+  const isSharedView = searchParams.get("shared") === "true";
   const [analysis, setAnalysis] = useState<ProfileAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +61,10 @@ export default function ProfilePage() {
   };
 
   const handleCopyLink = async () => {
-    const url = window.location.href;
+    // Create share URL with ?shared=true parameter
+    const shareUrl = new URL(window.location.href);
+    shareUrl.searchParams.set("shared", "true");
+    const url = shareUrl.toString();
 
     // Try modern clipboard API first
     if (navigator.clipboard && window.isSecureContext) {
@@ -177,12 +182,21 @@ export default function ProfilePage() {
               )}
             </button>
           </div>
-          <Link
-            href={`/${username}/compose`}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-          >
-            Compose Post
-          </Link>
+          {isSharedView ? (
+            <Link
+              href="/"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              Check your X
+            </Link>
+          ) : (
+            <Link
+              href={`/${username}/compose`}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              Compose Post
+            </Link>
+          )}
         </div>
 
         {/* Profile Summary */}
