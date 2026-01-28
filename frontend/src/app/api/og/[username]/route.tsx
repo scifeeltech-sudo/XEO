@@ -17,44 +17,30 @@ interface ProfileAnalysis {
 }
 
 // Pentagon chart helper functions
-function getPointOnPentagon(
-  centerX: number,
-  centerY: number,
+function getPoint(
+  cx: number,
+  cy: number,
   radius: number,
-  index: number,
-  total: number = 5
+  index: number
 ): { x: number; y: number } {
-  // Start from top (-90 degrees) and go clockwise
-  const angle = (Math.PI * 2 * index) / total - Math.PI / 2;
+  const angle = (Math.PI * 2 * index) / 5 - Math.PI / 2;
   return {
-    x: centerX + radius * Math.cos(angle),
-    y: centerY + radius * Math.sin(angle),
+    x: cx + radius * Math.cos(angle),
+    y: cy + radius * Math.sin(angle),
   };
 }
 
-function createPentagonPath(
-  centerX: number,
-  centerY: number,
-  scores: number[],
-  maxRadius: number
-): string {
-  const points = scores.map((score, i) => {
-    const radius = (score / 100) * maxRadius;
-    return getPointOnPentagon(centerX, centerY, radius, i);
-  });
-  return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
+function pentagonPath(cx: number, cy: number, radius: number): string {
+  const pts = [0, 1, 2, 3, 4].map((i) => getPoint(cx, cy, radius, i));
+  return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y} L ${pts[2].x} ${pts[2].y} L ${pts[3].x} ${pts[3].y} L ${pts[4].x} ${pts[4].y} Z`;
 }
 
-function createGridPath(
-  centerX: number,
-  centerY: number,
-  radius: number
-): string {
-  const points = [0, 1, 2, 3, 4].map((i) =>
-    getPointOnPentagon(centerX, centerY, radius, i)
-  );
-  return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
+function scorePath(cx: number, cy: number, scores: number[], maxR: number): string {
+  const pts = scores.map((s, i) => getPoint(cx, cy, (s / 100) * maxR, i));
+  return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y} L ${pts[2].x} ${pts[2].y} L ${pts[3].x} ${pts[3].y} L ${pts[4].x} ${pts[4].y} Z`;
 }
+
+export const runtime = "edge";
 
 export async function GET(
   request: Request,
@@ -65,11 +51,14 @@ export async function GET(
   let analysis: ProfileAnalysis | null = null;
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     const response = await fetch(
       `${API_BASE_URL}/api/v1/profile/${username}/analyze`,
-      { signal: controller.signal }
+      {
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json" },
+      }
     );
     clearTimeout(timeoutId);
 
@@ -81,41 +70,36 @@ export async function GET(
   }
 
   const scores = analysis?.scores || {
-    reach: 0,
-    engagement: 0,
-    virality: 0,
-    quality: 0,
-    longevity: 0,
+    reach: 50,
+    engagement: 50,
+    virality: 50,
+    quality: 50,
+    longevity: 50,
   };
 
-  // Pentagon chart dimensions
-  const chartSize = 280;
-  const chartCenter = chartSize / 2;
-  const maxRadius = 120;
+  const cx = 150;
+  const cy = 150;
+  const maxR = 120;
 
-  // Score values in order: Reach, Engagement, Virality, Quality, Longevity
-  const scoreValues = [
-    scores.reach,
-    scores.engagement,
-    scores.virality,
-    scores.quality,
-    scores.longevity,
-  ];
+  const scoreArr = [scores.reach, scores.engagement, scores.virality, scores.quality, scores.longevity];
+  const labels = ["Reach", "Engage", "Viral", "Quality", "Long"];
+  const colors = ["#3B82F6", "#22C55E", "#A855F7", "#EAB308", "#F97316"];
 
-  // Labels with positions
-  const labels = [
-    { name: "Reach", color: "#3B82F6", score: scores.reach },
-    { name: "Engage", color: "#22C55E", score: scores.engagement },
-    { name: "Viral", color: "#A855F7", score: scores.virality },
-    { name: "Quality", color: "#EAB308", score: scores.quality },
-    { name: "Long", color: "#F97316", score: scores.longevity },
-  ];
+  // Pre-calculate all paths as strings
+  const grid1 = pentagonPath(cx, cy, maxR * 0.25);
+  const grid2 = pentagonPath(cx, cy, maxR * 0.5);
+  const grid3 = pentagonPath(cx, cy, maxR * 0.75);
+  const grid4 = pentagonPath(cx, cy, maxR);
+  const dataPath = scorePath(cx, cy, scoreArr, maxR);
 
-  // Calculate label positions
-  const labelPositions = labels.map((_, i) => {
-    const point = getPointOnPentagon(chartCenter, chartCenter, maxRadius + 35, i);
-    return point;
-  });
+  // Pre-calculate axis lines
+  const axes = [0, 1, 2, 3, 4].map((i) => getPoint(cx, cy, maxR, i));
+
+  // Pre-calculate score points
+  const scorePts = scoreArr.map((s, i) => getPoint(cx, cy, (s / 100) * maxR, i));
+
+  // Pre-calculate label positions
+  const labelPts = [0, 1, 2, 3, 4].map((i) => getPoint(cx, cy, maxR + 30, i));
 
   return new ImageResponse(
     (
@@ -125,154 +109,90 @@ export async function GET(
           height: "100%",
           display: "flex",
           backgroundColor: "#111827",
-          padding: 48,
+          padding: "40px",
         }}
       >
-        {/* Left side - Pentagon Chart */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 400,
-          }}
-        >
-          <svg
-            width={chartSize}
-            height={chartSize}
-            viewBox={`0 0 ${chartSize} ${chartSize}`}
-            style={{ overflow: "visible" }}
-          >
-            {/* Grid lines */}
-            {[0.2, 0.4, 0.6, 0.8, 1].map((scale) => (
-              <path
-                key={scale}
-                d={createGridPath(chartCenter, chartCenter, maxRadius * scale)}
-                fill="none"
-                stroke="#374151"
-                strokeWidth="1"
-              />
-            ))}
+        {/* Left - Chart */}
+        <div style={{ display: "flex", width: "450px", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ display: "flex", position: "relative", width: "300px", height: "300px" }}>
+            <svg width="300" height="300" viewBox="0 0 300 300">
+              {/* Grid */}
+              <path d={grid1} fill="none" stroke="#374151" strokeWidth="1" />
+              <path d={grid2} fill="none" stroke="#374151" strokeWidth="1" />
+              <path d={grid3} fill="none" stroke="#374151" strokeWidth="1" />
+              <path d={grid4} fill="none" stroke="#374151" strokeWidth="1" />
 
-            {/* Axis lines */}
-            {[0, 1, 2, 3, 4].map((i) => {
-              const point = getPointOnPentagon(chartCenter, chartCenter, maxRadius, i);
-              return (
-                <line
-                  key={i}
-                  x1={chartCenter}
-                  y1={chartCenter}
-                  x2={point.x}
-                  y2={point.y}
-                  stroke="#374151"
-                  strokeWidth="1"
-                />
-              );
-            })}
+              {/* Axes */}
+              <line x1={cx} y1={cy} x2={axes[0].x} y2={axes[0].y} stroke="#374151" strokeWidth="1" />
+              <line x1={cx} y1={cy} x2={axes[1].x} y2={axes[1].y} stroke="#374151" strokeWidth="1" />
+              <line x1={cx} y1={cy} x2={axes[2].x} y2={axes[2].y} stroke="#374151" strokeWidth="1" />
+              <line x1={cx} y1={cy} x2={axes[3].x} y2={axes[3].y} stroke="#374151" strokeWidth="1" />
+              <line x1={cx} y1={cy} x2={axes[4].x} y2={axes[4].y} stroke="#374151" strokeWidth="1" />
 
-            {/* Score polygon */}
-            <path
-              d={createPentagonPath(chartCenter, chartCenter, scoreValues, maxRadius)}
-              fill="rgba(59, 130, 246, 0.3)"
-              stroke="#3B82F6"
-              strokeWidth="3"
-            />
+              {/* Data polygon */}
+              <path d={dataPath} fill="rgba(59, 130, 246, 0.4)" stroke="#3B82F6" strokeWidth="3" />
 
-            {/* Score points */}
-            {scoreValues.map((score, i) => {
-              const radius = (score / 100) * maxRadius;
-              const point = getPointOnPentagon(chartCenter, chartCenter, radius, i);
-              return (
-                <circle
-                  key={i}
-                  cx={point.x}
-                  cy={point.y}
-                  r="6"
-                  fill={labels[i].color}
-                />
-              );
-            })}
-          </svg>
+              {/* Score points */}
+              <circle cx={scorePts[0].x} cy={scorePts[0].y} r="8" fill={colors[0]} />
+              <circle cx={scorePts[1].x} cy={scorePts[1].y} r="8" fill={colors[1]} />
+              <circle cx={scorePts[2].x} cy={scorePts[2].y} r="8" fill={colors[2]} />
+              <circle cx={scorePts[3].x} cy={scorePts[3].y} r="8" fill={colors[3]} />
+              <circle cx={scorePts[4].x} cy={scorePts[4].y} r="8" fill={colors[4]} />
+            </svg>
 
-          {/* Labels around the chart */}
-          <div
-            style={{
-              display: "flex",
-              position: "relative",
-              width: chartSize + 100,
-              height: chartSize + 80,
-              marginTop: -chartSize - 20,
-            }}
-          >
-            {labels.map((label, i) => {
-              const pos = labelPositions[i];
-              return (
-                <div
-                  key={i}
-                  style={{
-                    position: "absolute",
-                    left: pos.x + 50 - 40,
-                    top: pos.y + 40 - 12,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                  }}
-                >
-                  <span style={{ fontSize: 14, color: label.color, fontWeight: 600 }}>
-                    {Math.round(label.score)}
-                  </span>
-                  <span style={{ fontSize: 11, color: "#9CA3AF" }}>
-                    {label.name}
-                  </span>
-                </div>
-              );
-            })}
+            {/* Labels */}
+            <div style={{ display: "flex", position: "absolute", top: labelPts[0].y - 45, left: labelPts[0].x - 30, flexDirection: "column", alignItems: "center" }}>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: colors[0] }}>{Math.round(scoreArr[0])}</span>
+              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{labels[0]}</span>
+            </div>
+            <div style={{ display: "flex", position: "absolute", top: labelPts[1].y - 10, left: labelPts[1].x + 5, flexDirection: "column", alignItems: "center" }}>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: colors[1] }}>{Math.round(scoreArr[1])}</span>
+              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{labels[1]}</span>
+            </div>
+            <div style={{ display: "flex", position: "absolute", top: labelPts[2].y + 5, left: labelPts[2].x - 15, flexDirection: "column", alignItems: "center" }}>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: colors[2] }}>{Math.round(scoreArr[2])}</span>
+              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{labels[2]}</span>
+            </div>
+            <div style={{ display: "flex", position: "absolute", top: labelPts[3].y + 5, left: labelPts[3].x - 45, flexDirection: "column", alignItems: "center" }}>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: colors[3] }}>{Math.round(scoreArr[3])}</span>
+              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{labels[3]}</span>
+            </div>
+            <div style={{ display: "flex", position: "absolute", top: labelPts[4].y - 10, left: labelPts[4].x - 60, flexDirection: "column", alignItems: "center" }}>
+              <span style={{ fontSize: "18px", fontWeight: "bold", color: colors[4] }}>{Math.round(scoreArr[4])}</span>
+              <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{labels[4]}</span>
+            </div>
           </div>
         </div>
 
-        {/* Right side - Info */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            flex: 1,
-            paddingLeft: 32,
-            justifyContent: "center",
-          }}
-        >
-          <span style={{ fontSize: 56, fontWeight: 700, color: "white" }}>
-            @{username}
-          </span>
-          <span style={{ fontSize: 24, color: "#9CA3AF", marginTop: 8, marginBottom: 24 }}>
-            X Score Optimizer
-          </span>
+        {/* Right - Info */}
+        <div style={{ display: "flex", flexDirection: "column", flex: "1", paddingLeft: "40px", justifyContent: "center" }}>
+          <span style={{ fontSize: "52px", fontWeight: "bold", color: "white" }}>@{username}</span>
+          <span style={{ fontSize: "22px", color: "#9CA3AF", marginTop: "8px" }}>X Score Optimizer</span>
 
-          {/* Score summary boxes */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-            {labels.map((label) => (
-              <div
-                key={label.name}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  backgroundColor: "#1F2937",
-                  borderRadius: 12,
-                  padding: "12px 16px",
-                  gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 28, fontWeight: 700, color: label.color }}>
-                  {Math.round(label.score)}
-                </span>
-                <span style={{ fontSize: 14, color: "#9CA3AF" }}>{label.name}</span>
-              </div>
-            ))}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "32px" }}>
+            <div style={{ display: "flex", alignItems: "center", backgroundColor: "#1F2937", borderRadius: "10px", padding: "10px 14px" }}>
+              <span style={{ fontSize: "24px", fontWeight: "bold", color: colors[0], marginRight: "8px" }}>{Math.round(scoreArr[0])}</span>
+              <span style={{ fontSize: "14px", color: "#9CA3AF" }}>{labels[0]}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", backgroundColor: "#1F2937", borderRadius: "10px", padding: "10px 14px" }}>
+              <span style={{ fontSize: "24px", fontWeight: "bold", color: colors[1], marginRight: "8px" }}>{Math.round(scoreArr[1])}</span>
+              <span style={{ fontSize: "14px", color: "#9CA3AF" }}>{labels[1]}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", backgroundColor: "#1F2937", borderRadius: "10px", padding: "10px 14px" }}>
+              <span style={{ fontSize: "24px", fontWeight: "bold", color: colors[2], marginRight: "8px" }}>{Math.round(scoreArr[2])}</span>
+              <span style={{ fontSize: "14px", color: "#9CA3AF" }}>{labels[2]}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", backgroundColor: "#1F2937", borderRadius: "10px", padding: "10px 14px" }}>
+              <span style={{ fontSize: "24px", fontWeight: "bold", color: colors[3], marginRight: "8px" }}>{Math.round(scoreArr[3])}</span>
+              <span style={{ fontSize: "14px", color: "#9CA3AF" }}>{labels[3]}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", backgroundColor: "#1F2937", borderRadius: "10px", padding: "10px 14px" }}>
+              <span style={{ fontSize: "24px", fontWeight: "bold", color: colors[4], marginRight: "8px" }}>{Math.round(scoreArr[4])}</span>
+              <span style={{ fontSize: "14px", color: "#9CA3AF" }}>{labels[4]}</span>
+            </div>
           </div>
 
-          <div style={{ display: "flex", marginTop: "auto" }}>
-            <span style={{ fontSize: 16, color: "#6B7280" }}>xeo.selanetwork.io</span>
-          </div>
+          <span style={{ fontSize: "16px", color: "#6B7280", marginTop: "auto" }}>xeo.selanetwork.io</span>
         </div>
       </div>
     ),
